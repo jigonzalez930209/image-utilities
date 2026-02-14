@@ -46,12 +46,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
     { id: 'isnet', name: 'Pro', desc: 'Máxima precisión, más lento.' }
   ] as const;
 
+
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+      layout="position"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.2 }}
       className="group relative bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden"
     >
       <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
@@ -61,8 +63,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 group/thumb transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
         >
           <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-300">
-            <div className="p-2 bg-brand text-white rounded-full shadow-2xl scale-50 group-hover/thumb:scale-100 transition-transform">
+          <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-200">
+            <div className="p-2 bg-brand text-white rounded-full shadow-2xl scale-75 group-hover/thumb:scale-100 transition-transform duration-200">
               {image.status === 'processing' || isPendingPreview ? (
                 <RefreshCw size={16} className="animate-spin" />
               ) : (
@@ -131,7 +133,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           )}
           {(image.status === 'processing' || isPendingPreview) && (
             <div className="flex flex-col items-end gap-1">
-              <div className="animate-spin text-brand">
+              <div className="animate-spin text-brand text-opacity-80">
                 <RefreshCw size={20} />
               </div>
               {image.progress && (
@@ -139,7 +141,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                   <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest whitespace-nowrap">
                     {image.progress.key.includes('model') ? 'Cargando IA' : 'Procesando'}
                   </span>
-                  <span className="text-[10px] text-brand font-mono font-bold">
+                  <span className="text-[10px] text-brand font-mono font-black">
                     {image.progress.percent}%
                   </span>
                 </div>
@@ -173,7 +175,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/5 bg-white/[0.02]"
+            transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+            className="border-t border-white/5 bg-white/[0.02] overflow-hidden"
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -197,8 +200,9 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
 
               {image.removeBackground && (
                 <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
                   className="space-y-4"
                 >
                   <div className="grid grid-cols-3 gap-2">
@@ -210,13 +214,17 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                           "px-3 py-2 rounded-xl border text-left transition-all relative overflow-hidden",
                           image.bgModel === m.id 
                             ? "bg-brand/10 border-brand text-white" 
-                            : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                            : "bg-white/5 border-white/5 text-white/40 hover:text-white"
                         )}
                       >
                         <div className="text-[10px] font-black uppercase mb-0.5">{m.name}</div>
                         <div className="text-[8px] leading-tight opacity-60">{m.desc}</div>
                         {image.bgModel === m.id && (
-                          <motion.div layoutId="active-model" className="absolute inset-0 border-2 border-brand rounded-xl pointer-events-none" />
+                          <motion.div 
+                            layoutId="active-model" 
+                            transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+                            className="absolute inset-0 border-2 border-brand rounded-xl pointer-events-none" 
+                          />
                         )}
                       </button>
                     ))}
@@ -253,6 +261,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999999 }}
             className="flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95 p-4 md:p-8"
           >

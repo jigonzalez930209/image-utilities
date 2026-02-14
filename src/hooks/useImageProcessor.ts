@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { convertImage, type ProcessOptions, type ImageFormat } from '../lib/imageProcessor';
 
 export interface ProcessedImage {
@@ -21,17 +21,17 @@ export const useImageProcessor = () => {
   const [images, setImages] = useState<ProcessedImage[]>([]);
 
   // Add event listener for progress
-  useState(() => {
+  useEffect(() => {
     const handler = (e: Event): void => {
       const customEvent = e as CustomEvent<{ key: string; percent: string; id: string }>;
       const { key, percent, id } = customEvent.detail;
       setImages(prev => prev.map(img => 
-        img.originalName === id ? { ...img, progress: { key, percent } } : img
+        img.id === id ? { ...img, progress: { key, percent } } : img
       ));
     };
     window.addEventListener('image-process-progress', handler);
     return () => window.removeEventListener('image-process-progress', handler);
-  });
+  }, []);
 
   const addImages = useCallback((files: File[]): void => {
     const newImages: ProcessedImage[] = files.map((file) => ({
@@ -70,7 +70,7 @@ export const useImageProcessor = () => {
         bgModel: img.bgModel,
       };
 
-      const resultBlob = await convertImage(file, options);
+      const resultBlob = await convertImage(file, options, id);
       const processedUrl = URL.createObjectURL(resultBlob);
 
       updateImageOptions(id, {
@@ -98,7 +98,7 @@ export const useImageProcessor = () => {
       const file = new File([blob], img.originalName, { type: blob.type });
 
       const { previewBackgroundRemoval } = await import('../lib/imageProcessor');
-      const resultBlob = await previewBackgroundRemoval(file, img.bgModel);
+      const resultBlob = await previewBackgroundRemoval(file, id, img.bgModel);
       
       const previewUrl = URL.createObjectURL(resultBlob);
       if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);

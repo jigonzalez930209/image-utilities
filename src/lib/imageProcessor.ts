@@ -66,8 +66,10 @@ const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
 
 export const convertImage = async (
   file: File,
-  options: ProcessOptions
+  options: ProcessOptions,
+  id: string // Add ID for progress tracking
 ): Promise<Blob> => {
+  console.log(`[Processor] Starting conversion for ${id} (${file.type})`);
   const originalBytes = new Uint8Array(await file.arrayBuffer());
   let currentBytes: Uint8Array = originalBytes;
 
@@ -90,6 +92,7 @@ export const convertImage = async (
     // Specialized SVG handling to bypass Magick Inkscape delegate issue
     currentBytes = await rasterizeSVG(originalBytes);
   } else if (options.removeBackground || !isCommonFormat) {
+    console.log(`[Processor] Normalizing non-common format to PNG via Magick`);
     currentBytes = await new Promise<Uint8Array>((resolve) => {
       try {
         ImageMagick.read(originalBytes, (image) => {
@@ -98,7 +101,7 @@ export const convertImage = async (
           });
         });
       } catch (err) {
-        console.error('Magick normalization failed:', err);
+        console.error('[Processor] Magick normalization failed:', err);
         resolve(originalBytes);
       }
     });
@@ -106,12 +109,14 @@ export const convertImage = async (
 
   // 2. Remove background if requested (Skip for SVG as it's natively transparent)
   if (options.removeBackground && !isSVG) {
+    console.log(`[Processor] Removing background with model ${options.bgModel || 'isnet_fp16'}`);
     const config: BGConfig = {
       model: options.bgModel || 'isnet_fp16',
       progress: (key, current, total) => {
-        const percent = ((current / total) * 100).toFixed(0);
+        const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+        console.log(`[Processor] Progress: ${key} - ${percent}%`);
         const event = new CustomEvent('image-process-progress', { 
-          detail: { key, percent, id: file.name } 
+          detail: { key, percent, id } 
         });
         window.dispatchEvent(event);
       },
@@ -119,8 +124,9 @@ export const convertImage = async (
     try {
       const bgResult = await removeBackground(new Blob([currentBytes.slice()], { type: 'image/png' }), config);
       currentBytes = new Uint8Array(await bgResult.arrayBuffer());
+      console.log(`[Processor] Background removal success`);
     } catch (err) {
-      console.error('Background removal failed:', err);
+      console.error('[Processor] Background removal failed:', err);
       throw new Error('La eliminación de fondo falló. Asegúrate de que la imagen sea válida.');
     }
   }
@@ -151,14 +157,17 @@ export const convertImage = async (
 
 export const previewBackgroundRemoval = async (
   file: File,
+  id: string, // Add ID
   model: 'isnet' | 'isnet_fp16' | 'isnet_quint8' = 'isnet_fp16'
 ): Promise<Blob> => {
+  console.log(`[Processor] Starting background removal preview for ${id}`);
   const config: BGConfig = {
     model,
     progress: (key, current, total) => {
-      const percent = ((current / total) * 100).toFixed(0);
+      const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+      console.log(`[Processor] Preview Progress: ${key} - ${percent}%`);
       const event = new CustomEvent('image-process-progress', { 
-        detail: { key, percent, id: file.name } 
+        detail: { key, percent, id } 
       });
       window.dispatchEvent(event);
     },
