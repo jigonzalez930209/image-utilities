@@ -59,19 +59,26 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
       <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
         <button 
           onClick={handlePreviewTrigger}
-          disabled={image.status === 'processing' || isPendingPreview}
-          className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 group/thumb transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+          disabled={image.status === 'processing' || isPendingPreview || !image.removeBackground}
+          className={cn(
+            "relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 group/thumb transition-all active:scale-95 disabled:active:scale-100",
+            !image.removeBackground && "cursor-default active:scale-100"
+          )}
         >
           <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-200">
-            <div className="p-2 bg-brand text-white rounded-full shadow-2xl scale-75 group-hover/thumb:scale-100 transition-transform duration-200">
-              {image.status === 'processing' || isPendingPreview ? (
-                <RefreshCw size={16} className="animate-spin" />
-              ) : (
-                <Eye size={16} />
-              )}
+          
+          {image.removeBackground && (
+            <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-200">
+              <div className="p-2 bg-brand text-white rounded-full shadow-2xl scale-75 group-hover/thumb:scale-100 transition-transform duration-200">
+                {image.status === 'processing' || isPendingPreview ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  <Eye size={16} />
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
           {isPendingPreview && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]">
               <RefreshCw size={20} className="text-white animate-spin" />

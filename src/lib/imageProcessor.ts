@@ -68,12 +68,18 @@ const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
 };
 
 /**
- * Normalizes input files to PNG Uint8Array for background removal.
+ * Normalizes input files to PNG Uint8Array ONLY IF NECESSARY (e.g. for background removal).
  */
-const normalizeToPNG = async (file: File): Promise<Uint8Array> => {
+const normalizeToPNG = async (file: File, force: boolean = false): Promise<Uint8Array> => {
   // Use .slice() immediately to avoid SharedArrayBuffer issues with constructors
   const arrayBuffer = await file.arrayBuffer();
   const originalBytes = new Uint8Array(arrayBuffer.slice ? arrayBuffer.slice(0) : arrayBuffer);
+  
+  if (!force) {
+    console.log(`[Processor] Skipping normalization for ${file.name}, using original bytes.`);
+    return originalBytes;
+  }
+
   const name = file.name.toLowerCase();
   
   const isSVG = name.endsWith('.svg') || file.type === 'image/svg+xml';
@@ -81,7 +87,7 @@ const normalizeToPNG = async (file: File): Promise<Uint8Array> => {
   const isCommon = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
   const isICO = name.endsWith('.ico');
 
-  console.log(`[Processor] Normalizing: ${file.name} (type: ${file.type})`);
+  console.log(`[Processor] Normalizing to PNG for AI: ${file.name}`);
 
   if (isHEIC) {
     try {
@@ -106,7 +112,7 @@ const normalizeToPNG = async (file: File): Promise<Uint8Array> => {
         });
       });
     } catch (err) {
-      console.error('[Processor] Magick failed, using raw bytes:', err);
+      console.error('[Processor] Magick normalization failed:', err);
       // Fallback: try one last time with a fresh slice if not already done
       resolve(originalBytes.slice());
     }
@@ -118,8 +124,9 @@ export const convertImage = async (
   options: ProcessOptions,
   id: string
 ): Promise<Blob> => {
-  console.log(`[Processor] Processing: ${id}`);
-  let currentBytes = await normalizeToPNG(file);
+  console.log(`[Processor] Processing ${id} (IA: ${options.removeBackground})`);
+  // Only force PNG normalization if we are doing AI background removal
+  let currentBytes = await normalizeToPNG(file, options.removeBackground);
 
   if (options.removeBackground) {
     const isSVG = file.name.toLowerCase().endsWith('.svg');
@@ -168,7 +175,7 @@ export const previewBackgroundRemoval = async (
   model: 'isnet' | 'isnet_fp16' | 'isnet_quint8' = 'isnet_fp16'
 ): Promise<Blob> => {
   console.log(`[Processor] Previewing: ${id}`);
-  const pngBytes = await normalizeToPNG(file);
+  const pngBytes = await normalizeToPNG(file, true); // Force normalization for AI preview
   const config: BGConfig = {
     model,
     progress: (key, current, total) => {
