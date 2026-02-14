@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Trash2, RefreshCw, CheckCircle, Download, XCircle, ChevronDown, Eye, ChevronUp, Layers, ArrowRight } from 'lucide-react';
+import { Trash2, RefreshCw, CheckCircle, Download, XCircle, ChevronDown, Eye, ChevronUp, Layers } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
 import { formatBytes, cn } from '../lib/utils';
 import { FORMAT_CATEGORIES, type ImageFormat } from '../lib/formats';
@@ -217,69 +217,117 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-12 backdrop-blur-3xl bg-black/90"
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95"
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="relative w-full h-full flex flex-col items-center"
-            >
-              <div className="absolute top-0 right-0 p-4">
-                <button 
+            {/* Header / Controls */}
+            <div className="absolute top-0 inset-x-0 p-6 flex items-center justify-between z-50">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-brand/20 rounded-xl flex items-center justify-center text-brand">
+                  <Layers size={20} />
+                </div>
+                <div>
+                  <h2 className="text-white font-black uppercase tracking-tighter text-xl">Comparador IA</h2>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Arrastra la barra para comparar</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowPreview(false)}
+                className="p-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl transition-all border border-white/10 group"
+              >
+                <XCircle size={24} className="group-hover:rotate-90 transition-transform" />
+              </button>
+            </div>
+
+            {/* Main Comparison Area */}
+            <div className="relative flex-grow w-full max-w-5xl px-4 flex items-center justify-center overflow-hidden">
+              <ComparisonSlider 
+                original={image.originalUrl} 
+                processed={image.previewUrl} 
+              />
+            </div>
+
+            {/* Footer Actions */}
+            <div className="p-12 w-full max-w-2xl text-center z-50">
+              <div className="flex gap-4 justify-center">
+                <button
                   onClick={() => setShowPreview(false)}
-                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/10"
+                  className="px-10 py-4 rounded-2xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all border border-white/5"
                 >
-                  <XCircle size={24} />
+                  Seguir Ajustando
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPreview(false);
+                    onProcess(image.id);
+                  }}
+                  className="px-10 py-4 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/20 hover:bg-brand-accent transition-all active:scale-95 flex items-center gap-2"
+                >
+                  Confirmar y Procesar <CheckCircle size={20} />
                 </button>
               </div>
-
-              <div className="flex-grow w-full flex flex-col md:flex-row gap-8 items-center justify-center">
-                <div className="flex-1 flex flex-col items-center gap-4">
-                  <div className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em]">Original</div>
-                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 max-h-[60vh]">
-                    <img src={image.originalUrl} alt="Original" className="max-w-full h-auto object-contain" />
-                  </div>
-                </div>
-                
-                <div className="text-brand animate-pulse">
-                  <ArrowRight size={32} className="rotate-90 md:rotate-0" />
-                </div>
-
-                <div className="flex-1 flex flex-col items-center gap-4">
-                  <div className="text-brand text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
-                    <Layers size={12} /> Previsualización IA
-                  </div>
-                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-brand/30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat max-h-[60vh]">
-                    <div className="absolute inset-0 bg-white/5 checkerboard opacity-20" />
-                    <img src={image.previewUrl} alt="Preview" className="relative z-10 max-w-full h-auto object-contain" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="py-12 w-full max-w-2xl text-center">
-                <h2 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tighter">¿Se ve bien el recorte?</h2>
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={() => setShowPreview(false)}
-                    className="px-8 py-3 rounded-2xl bg-white/5 text-white/60 font-bold hover:bg-white/10 transition-all border border-white/10"
-                  >
-                    Seguir Ajustando
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowPreview(false);
-                      onProcess(image.id);
-                    }}
-                    className="px-8 py-3 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/20 hover:bg-brand-accent transition-all active:scale-95 flex items-center gap-2"
-                  >
-                    Confirmar y Procesar <CheckCircle size={18} />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
+  );
+};
+
+interface ComparisonSliderProps {
+  original: string;
+  processed: string;
+}
+
+const ComparisonSlider: React.FC<ComparisonSliderProps> = ({ original, processed }) => {
+  const [position, setPosition] = React.useState(50);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleMove = (clientX: number) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    setPosition((x / rect.width) * 100);
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => handleMove(e.clientX);
+  const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="relative w-full aspect-video md:aspect-[3/2] rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-white/10 cursor-col-resize select-none"
+      onMouseMove={onMouseMove}
+      onTouchMove={onTouchMove}
+    >
+      {/* Background (After) */}
+      <div className="absolute inset-0 checkerboard" />
+      <img src={processed} className="absolute inset-0 w-full h-full object-contain pointer-events-none" alt="After" />
+
+      {/* Foreground (Before) */}
+      <div 
+        className="absolute inset-0 overflow-hidden"
+        style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+      >
+        <img src={original} className="absolute inset-0 w-full h-full object-contain pointer-events-none" alt="Before" />
+      </div>
+
+      {/* Slider Bar */}
+      <div 
+        className="absolute top-0 bottom-0 w-0.5 bg-brand z-20 shadow-[0_0_15px_rgba(var(--color-brand),0.5)]"
+        style={{ left: `${position}%` }}
+      >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-brand rounded-full flex items-center justify-center shadow-xl border-4 border-black group-active:scale-125 transition-transform">
+          <Layers size={14} className="text-white" />
+        </div>
+      </div>
+
+      {/* Labels */}
+      <div className="absolute bottom-6 left-6 z-30 px-3 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[10px] font-black uppercase text-white/60 pointer-events-none">
+        Original
+      </div>
+      <div className="absolute bottom-6 right-6 z-30 px-3 py-1 bg-brand/80 backdrop-blur-md rounded-lg text-[10px] font-black uppercase text-white pointer-events-none">
+        Procesado
+      </div>
+    </div>
   );
 };
