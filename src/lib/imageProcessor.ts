@@ -133,26 +133,52 @@ const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
 };
 
 /**
+ * Uses the browser's native engine to convert an image to PNG.
+ * Extremely reliable for ICO, JPEG, WEBP, etc.
+ */
+const browserNormalize = async (bytes: Uint8Array): Promise<Uint8Array> => {
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([bytes.slice()], { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('Canvas context failed'));
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error('Canvas toBlob failed'));
+        blob.arrayBuffer().then(buf => resolve(new Uint8Array(buf)));
+      }, 'image/png');
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Native decode failed'));
+    };
+    
+    img.src = url;
+  });
+};
+
+/**
  * Normalizes input files to PNG Uint8Array ONLY IF NECESSARY (e.g. for background removal).
  */
 const normalizeToPNG = async (file: File, force: boolean = false): Promise<Uint8Array> => {
-  // Use .slice() immediately to avoid SharedArrayBuffer issues with constructors
   const arrayBuffer = await file.arrayBuffer();
   const originalBytes = new Uint8Array(arrayBuffer.slice ? arrayBuffer.slice(0) : arrayBuffer);
   
-  if (!force) {
-    console.log(`[Processor] Skipping normalization for ${file.name}, using original bytes.`);
-    return originalBytes;
-  }
+  if (!force) return originalBytes;
 
   const name = file.name.toLowerCase();
-  
   const isSVG = name.endsWith('.svg') || file.type === 'image/svg+xml';
   const isHEIC = name.endsWith('.heic') || name.endsWith('.heif');
-  const isCommon = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type);
-  const isICO = name.endsWith('.ico');
 
-  console.log(`[Processor] Normalizing to PNG for AI: ${file.name}`);
+  console.log(`[Processor] Normalizing for AI: ${file.name}`);
 
   if (isHEIC) {
     try {
@@ -160,25 +186,29 @@ const normalizeToPNG = async (file: File, force: boolean = false): Promise<Uint8
       const finalBlob = Array.isArray(blob) ? blob[0] : blob;
       return new Uint8Array(await finalBlob.arrayBuffer());
     } catch (err) {
-      console.warn('[Processor] HEIC conversion failed, falling back to Magick');
+      console.warn('[Processor] HEIC failed, trying native...');
     }
   }
 
   if (isSVG) return await rasterizeSVG(originalBytes);
-  if (isCommon && !isICO) return originalBytes;
 
-  // Use ImageMagick for ICO, TIFF, RAW, etc.
+  // First try Browser Native (Highest reliability for ICO/JPEG/WEB-P)
+  try {
+    return await browserNormalize(originalBytes);
+  } catch (err) {
+    console.warn('[Processor] Native normalization failed, falling back to Magick:', err);
+  }
+
+  // Final fallback: ImageMagick
   return new Promise<Uint8Array>((resolve) => {
     try {
-      // Ensure we pass a clean copy
       ImageMagick.read(originalBytes.slice(), (image) => {
         image.write(MagickFormat.Png, (data) => {
           resolve(new Uint8Array(data.slice()));
         });
       });
     } catch (err) {
-      console.error('[Processor] Magick normalization failed:', err);
-      // Fallback: try one last time with a fresh slice if not already done
+      console.error('[Processor] Magick FATAL:', err);
       resolve(originalBytes.slice());
     }
   });
@@ -189,15 +219,16 @@ export const convertImage = async (
   options: ProcessOptions,
   id: string
 ): Promise<Blob> => {
-  console.log(`[Processor] Processing ${id} (IA: ${options.removeBackground})`);
-  // Only force PNG normalization if we are doing AI background removal
+  const model = options.bgModel || 'isnet_fp16';
+  console.log(`[Processor] Processing ${id} (IA: ${options.removeBackground}, Model: ${model})`);
+  
   let currentBytes = await normalizeToPNG(file, options.removeBackground);
 
   if (options.removeBackground) {
     const isSVG = file.name.toLowerCase().endsWith('.svg');
     if (!isSVG) {
       const config: BGConfig = {
-        model: options.bgModel || 'isnet_fp16',
+        model,
         fetchArgs: { fetch: cachedFetch },
         progress: (key, current, total) => {
           const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
@@ -208,10 +239,11 @@ export const convertImage = async (
         },
       };
       try {
-        // We use .slice() to convert SharedArrayBuffer to standard ArrayBuffer for the Blob constructor
+        const startTime = performance.now();
         const inputBlob = new Blob([currentBytes.slice()], { type: 'image/png' });
         const result = await removeBackground(inputBlob, config);
         currentBytes = new Uint8Array(await result.arrayBuffer());
+        console.log(`[Processor] AI Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
       } catch (err) {
         console.error('[Processor] BG Removal Failed:', err);
       }
@@ -226,7 +258,6 @@ export const convertImage = async (
       ImageMagick.read(currentBytes, (image) => {
         if (options.quality) image.quality = options.quality * 100;
         image.write(format, (data) => {
-          // Data from Magick-WASM might be SharedArrayBuffer if multi-threading is enabled
           resolve(new Blob([data.slice()], { type: `image/${formatStr.toLowerCase()}` }));
         });
       });
@@ -241,8 +272,8 @@ export const previewBackgroundRemoval = async (
   id: string,
   model: 'isnet' | 'isnet_fp16' | 'isnet_quint8' = 'isnet_fp16'
 ): Promise<Blob> => {
-  console.log(`[Processor] Previewing: ${id}`);
-  const pngBytes = await normalizeToPNG(file, true); // Force normalization for AI preview
+  console.log(`[Processor] Previewing: ${id} (Model: ${model})`);
+  const pngBytes = await normalizeToPNG(file, true);
   const config: BGConfig = {
     model,
     fetchArgs: { fetch: cachedFetch },
@@ -254,7 +285,9 @@ export const previewBackgroundRemoval = async (
       }));
     },
   };
-  // Explicit .slice() for SharedArrayBuffer compatibility
+  const startTime = performance.now();
   const inputBlob = new Blob([pngBytes.slice()], { type: 'image/png' });
-  return await removeBackground(inputBlob, config);
+  const result = await removeBackground(inputBlob, config);
+  console.log(`[Processor] Preview Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
+  return result;
 };
