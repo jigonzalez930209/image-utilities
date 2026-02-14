@@ -9,6 +9,8 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 
 let rmbgPipeline: any = null;
+let rmbgPipelinePromise: Promise<any> | null = null;
+const activeLoadingIds = new Set<string>();
 
 const getCapabilities = async () => {
   if (typeof navigator === 'undefined' || !(navigator as any).gpu) {
@@ -25,45 +27,78 @@ const getCapabilities = async () => {
 const getRMBGPipeline = async (id: string) => {
   if (rmbgPipeline) return rmbgPipeline;
   
-  const { webGPU } = await getCapabilities();
-  const device = webGPU ? 'webgpu' : 'wasm';
-  // Use quantized model for WASM to avoid minute-long stalls
-  const dtype = webGPU ? 'fp32' : 'q8'; 
+  activeLoadingIds.add(id);
   
-  console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device}, Precision: ${dtype})`);
-  
-  const createPipeline = async (activeDevice: string, activeDtype: string) => {
-    return await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
-      device: activeDevice as any,
-      dtype: activeDtype as any,
-      progress_callback: (info: any) => {
-        if (info.status === 'progress') {
-          const fileName = info.file.split('/').pop() || info.file;
-          window.dispatchEvent(new CustomEvent('image-process-progress', { 
-            detail: { 
-              key: `loading:${fileName}`, 
-              percent: Math.round(info.progress).toString(), 
-              id, 
-              stage: 'loading' 
-            } 
-          }));
-        }
-      }
-    });
-  };
-
-  try {
-    rmbgPipeline = await createPipeline(device, dtype);
-  } catch (err) {
-    console.warn(`[Processor] RMBG Pipeline failed on ${device}, trying fallback WASM/q8...`, err);
+  if (rmbgPipelinePromise) {
     try {
-      rmbgPipeline = await createPipeline('wasm', 'q8');
-    } catch (finalErr) {
-      console.error('[Processor] RMBG Pipeline FATAL:', finalErr);
-      throw finalErr;
+      return await rmbgPipelinePromise;
+    } finally {
+      activeLoadingIds.delete(id);
     }
   }
-  return rmbgPipeline;
+
+  rmbgPipelinePromise = (async () => {
+    const { webGPU } = await getCapabilities();
+    const device = webGPU ? 'webgpu' : 'wasm';
+    const dtype = webGPU ? 'fp32' : 'q8'; 
+    
+    console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device}, Precision: ${dtype})`);
+    
+    const createPipeline = async (activeDevice: string, activeDtype: string) => {
+      return await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+        device: activeDevice as any,
+        dtype: activeDtype as any,
+        progress_callback: (info: any) => {
+          if (info.status === 'progress') {
+            const fileName = info.file.split('/').pop() || info.file;
+            const percent = Math.round(info.progress).toString();
+            
+            // Broadcast progress to all images currently waiting for this model
+            activeLoadingIds.forEach(targetId => {
+              window.dispatchEvent(new CustomEvent('image-process-progress', { 
+                detail: { 
+                  key: `loading:${fileName}`, 
+                  percent, 
+                  id: targetId, 
+                  stage: 'loading' 
+                } 
+              }));
+            });
+          }
+        }
+      });
+    };
+
+    try {
+      const pipe = await createPipeline(device, dtype);
+      
+      // Warmup inference to prevent first-run hang
+      console.log(`[Processor] Warming up RMBG-1.4...`);
+      const canvas = document.createElement('canvas');
+      canvas.width = 1; canvas.height = 1;
+      await pipe(canvas.toDataURL());
+      
+      rmbgPipeline = pipe;
+      return pipe;
+    } catch (err) {
+      console.warn(`[Processor] RMBG Pipeline failed on ${device}, trying fallback WASM/q8...`, err);
+      try {
+        const pipe = await createPipeline('wasm', 'q8');
+        rmbgPipeline = pipe;
+        return pipe;
+      } catch (finalErr) {
+        console.error('[Processor] RMBG Pipeline FATAL:', finalErr);
+        rmbgPipelinePromise = null; // Allow retry
+        throw finalErr;
+      }
+    }
+  })();
+
+  try {
+    return await rmbgPipelinePromise;
+  } finally {
+    activeLoadingIds.delete(id);
+  }
 };
 
 // Re-export ImageFormat for other components
@@ -298,13 +333,14 @@ export const convertImage = async (
         const startTime = performance.now();
         if (model === 'rmbg_14' as any) {
           const pipe = await getRMBGPipeline(id);
-          // Explicitly signal start of processing after model is ready
           window.dispatchEvent(new CustomEvent('image-process-progress', { 
             detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
           }));
+          console.log(`[Processor] Starting inference for ${id}...`);
           const inputUrl = URL.createObjectURL(new Blob([currentBytes.slice()]));
           const output = await pipe(inputUrl);
           URL.revokeObjectURL(inputUrl);
+          console.log(`[Processor] Inference completed for ${id}`);
           const mask = output.mask;
           const resultBlob = await mask.toBlob();
           currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
@@ -361,13 +397,14 @@ export const previewBackgroundRemoval = async (
 
   if (model === 'rmbg_14') {
     const pipe = await getRMBGPipeline(id);
-    // Explicitly signal start of processing
     window.dispatchEvent(new CustomEvent('image-process-progress', { 
       detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
     }));
+    console.log(`[Processor] Starting preview inference for ${id}...`);
     const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
     const output = await pipe(inputUrl);
     URL.revokeObjectURL(inputUrl);
+    console.log(`[Processor] Preview inference completed for ${id}`);
     result = await output.mask.toBlob();
   } else {
     const config: BGConfig = {

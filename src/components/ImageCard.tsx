@@ -151,7 +151,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               </div>
               {image.progress && (
                 <div className="flex flex-col items-end leading-tight text-right max-w-[120px]">
-                  <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest truncate w-full">
+                  <span className={`text-[7px] text-brand/60 font-black uppercase tracking-widest truncate w-full ${image.progress.stage === 'processing' ? 'animate-pulse' : ''}`}>
                     {image.progress.stage === 'loading' 
                       ? `Cargando: ${image.progress.key.replace('loading:', '')}` 
                       : 'Analizando...'}
