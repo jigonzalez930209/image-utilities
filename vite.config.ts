@@ -13,8 +13,11 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
+    fs: {
+      allow: ['..'],
+    },
   },
   optimizeDeps: {
-    exclude: ['@imgly/background-removal'],
+    exclude: ['@imgly/background-removal', 'onnxruntime-web'],
   },
 })

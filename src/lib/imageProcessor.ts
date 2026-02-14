@@ -106,6 +106,7 @@ export const convertImage = async (
   // 2. Remove background if requested (Skip for SVG as it's natively transparent)
   if (options.removeBackground && !isSVG) {
     const config: BGConfig = {
+      publicPath: `${window.location.origin}/assets/onnxruntime/`,
       progress: (key, current, total) => {
         const percent = ((current / total) * 100).toFixed(0);
         const event = new CustomEvent('image-process-progress', { 
