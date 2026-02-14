@@ -217,29 +217,32 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95"
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+            className="flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95 p-4 md:p-8"
           >
             {/* Header / Controls */}
-            <div className="absolute top-0 inset-x-0 p-6 flex items-center justify-between z-50">
+            <div className="absolute top-0 inset-x-0 p-6 md:p-8 flex items-center justify-between z-50 max-w-7xl mx-auto w-full">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-brand/20 rounded-xl flex items-center justify-center text-brand">
-                  <Layers size={20} />
+                <div className="w-12 h-12 bg-brand/20 rounded-2xl flex items-center justify-center text-brand border border-brand/20 shadow-lg shadow-brand/10">
+                  <Layers size={24} />
                 </div>
                 <div>
-                  <h2 className="text-white font-black uppercase tracking-tighter text-xl">Comparador IA</h2>
-                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Arrastra la barra para comparar</p>
+                  <h2 className="text-white font-black uppercase tracking-tighter text-2xl md:text-3xl leading-none mb-1">Comparador IA</h2>
+                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-brand animate-pulse" /> Haz clic y arrastra el eje central
+                  </p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowPreview(false)}
-                className="p-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl transition-all border border-white/10 group"
+                className="p-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl transition-all border border-white/10 group shadow-xl active:scale-95"
               >
-                <XCircle size={24} className="group-hover:rotate-90 transition-transform" />
+                <XCircle size={28} className="group-hover:rotate-90 transition-transform duration-500" />
               </button>
             </div>
 
             {/* Main Comparison Area */}
-            <div className="relative flex-grow w-full max-w-5xl px-4 flex items-center justify-center overflow-hidden">
+            <div className="relative w-full max-w-5xl flex items-center justify-center z-10">
               <ComparisonSlider 
                 original={image.originalUrl} 
                 processed={image.previewUrl} 
@@ -247,11 +250,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             </div>
 
             {/* Footer Actions */}
-            <div className="p-12 w-full max-w-2xl text-center z-50">
-              <div className="flex gap-4 justify-center">
+            <div className="absolute bottom-0 inset-x-0 p-8 md:p-12 text-center z-50">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="px-10 py-4 rounded-2xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all border border-white/5"
+                  className="flex-1 px-8 py-4 rounded-2xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all border border-white/5 shadow-xl active:scale-95"
                 >
                   Seguir Ajustando
                 </button>
@@ -260,9 +263,9 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                     setShowPreview(false);
                     onProcess(image.id);
                   }}
-                  className="px-10 py-4 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/20 hover:bg-brand-accent transition-all active:scale-95 flex items-center gap-2"
+                  className="flex-1 px-8 py-4 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/30 hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  Confirmar y Procesar <CheckCircle size={20} />
+                  Procesar Final <CheckCircle size={22} />
                 </button>
               </div>
             </div>
@@ -280,53 +283,94 @@ interface ComparisonSliderProps {
 
 const ComparisonSlider: React.FC<ComparisonSliderProps> = ({ original, processed }) => {
   const [position, setPosition] = React.useState(50);
+  const [isDragging, setIsDragging] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  const handleMove = (clientX: number) => {
+  const handleMove = React.useCallback((clientX: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
     setPosition((x / rect.width) * 100);
-  };
+  }, []);
 
-  const onMouseMove = (e: React.MouseEvent) => handleMove(e.clientX);
-  const onTouchMove = (e: React.TouchEvent) => handleMove(e.touches[0].clientX);
+  React.useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        handleMove(e.clientX);
+      }
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (isDragging) {
+        handleMove(e.touches[0].clientX);
+      }
+    };
+
+    if (isDragging) {
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('touchmove', onTouchMove);
+      window.addEventListener('touchend', onMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onMouseUp);
+    };
+  }, [isDragging, handleMove]);
 
   return (
     <div 
       ref={containerRef}
-      className="relative w-full aspect-video md:aspect-[3/2] rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-white/10 cursor-col-resize select-none"
-      onMouseMove={onMouseMove}
-      onTouchMove={onTouchMove}
+      className="relative w-full aspect-video md:aspect-[3/2] rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 select-none group/slider"
     >
       {/* Background (After) */}
-      <div className="absolute inset-0 checkerboard" />
-      <img src={processed} className="absolute inset-0 w-full h-full object-contain pointer-events-none" alt="After" />
+      <div className="absolute inset-0 checkerboard bg-opacity-50" />
+      <img src={processed} className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10" alt="After" />
 
       {/* Foreground (Before) */}
       <div 
-        className="absolute inset-0 overflow-hidden"
+        className="absolute inset-0 overflow-hidden z-20 pointer-events-none"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
-        <img src={original} className="absolute inset-0 w-full h-full object-contain pointer-events-none" alt="Before" />
+        <img src={original} className="absolute inset-0 w-full h-full object-contain" alt="Before" />
       </div>
 
-      {/* Slider Bar */}
+      {/* Draggable Handle */}
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-brand z-20 shadow-[0_0_15px_rgba(var(--color-brand),0.5)]"
+        className="absolute top-0 bottom-0 w-1 bg-brand/50 z-30 cursor-col-resize active:bg-brand transition-colors"
         style={{ left: `${position}%` }}
+        onMouseDown={() => setIsDragging(true)}
+        onTouchStart={() => setIsDragging(true)}
       >
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-brand rounded-full flex items-center justify-center shadow-xl border-4 border-black group-active:scale-125 transition-transform">
-          <Layers size={14} className="text-white" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-2xl border-4 border-brand group-active/slider:scale-110 transition-transform cursor-pointer">
+          <div className="flex gap-1">
+            <div className="w-1 h-4 bg-brand rounded-full opacity-40 shrink-0" />
+            <div className="w-1 h-4 bg-brand rounded-full shrink-0" />
+            <div className="w-1 h-4 bg-brand rounded-full opacity-40 shrink-0" />
+          </div>
         </div>
+        
+        {/* Visual Line Glow */}
+        <div className="absolute inset-0 bg-brand/30 blur-sm -z-10" />
       </div>
 
       {/* Labels */}
-      <div className="absolute bottom-6 left-6 z-30 px-3 py-1 bg-black/60 backdrop-blur-md rounded-lg text-[10px] font-black uppercase text-white/60 pointer-events-none">
-        Original
+      <div className="absolute top-6 left-6 z-40 flex flex-col gap-2 pointer-events-none">
+        <div className="px-4 py-2 bg-black/60 backdrop-blur-xl border border-white/5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white/50 shadow-2xl">
+          Original
+        </div>
       </div>
-      <div className="absolute bottom-6 right-6 z-30 px-3 py-1 bg-brand/80 backdrop-blur-md rounded-lg text-[10px] font-black uppercase text-white pointer-events-none">
-        Procesado
+      <div className="absolute top-6 right-6 z-40 flex flex-col gap-2 pointer-events-none">
+        <div className="px-4 py-2 bg-brand/80 backdrop-blur-xl border border-brand/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-2xl">
+          Procesado IA
+        </div>
       </div>
     </div>
   );
