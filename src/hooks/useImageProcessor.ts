@@ -49,7 +49,21 @@ export const useImageProcessor = () => {
 
   const updateImageOptions = useCallback((id: string, options: Partial<ProcessedImage>): void => {
     setImages((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, ...options } : img))
+      prev.map((img) => {
+        if (img.id !== id) return img;
+        
+        // If critical options change, reset status to idle so they can process again
+        const hasCriticalChanges = 
+          (options.format && options.format !== img.format) ||
+          (options.bgModel && options.bgModel !== img.bgModel) ||
+          (options.removeBackground !== undefined && options.removeBackground !== img.removeBackground);
+          
+        const newStatus = hasCriticalChanges && (img.status === 'completed' || img.status === 'error')
+          ? 'idle'
+          : options.status || img.status;
+
+        return { ...img, ...options, status: newStatus };
+      })
     );
   }, []);
 

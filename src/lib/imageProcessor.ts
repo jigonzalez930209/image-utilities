@@ -71,7 +71,9 @@ const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
  * Normalizes input files to PNG Uint8Array for background removal.
  */
 const normalizeToPNG = async (file: File): Promise<Uint8Array> => {
-  const originalBytes = new Uint8Array(await file.arrayBuffer());
+  // Use .slice() immediately to avoid SharedArrayBuffer issues with constructors
+  const arrayBuffer = await file.arrayBuffer();
+  const originalBytes = new Uint8Array(arrayBuffer.slice ? arrayBuffer.slice(0) : arrayBuffer);
   const name = file.name.toLowerCase();
   
   const isSVG = name.endsWith('.svg') || file.type === 'image/svg+xml';
@@ -97,14 +99,16 @@ const normalizeToPNG = async (file: File): Promise<Uint8Array> => {
   // Use ImageMagick for ICO, TIFF, RAW, etc.
   return new Promise<Uint8Array>((resolve) => {
     try {
-      ImageMagick.read(originalBytes, (image) => {
+      // Ensure we pass a clean copy
+      ImageMagick.read(originalBytes.slice(), (image) => {
         image.write(MagickFormat.Png, (data) => {
           resolve(new Uint8Array(data.slice()));
         });
       });
     } catch (err) {
       console.error('[Processor] Magick failed, using raw bytes:', err);
-      resolve(originalBytes);
+      // Fallback: try one last time with a fresh slice if not already done
+      resolve(originalBytes.slice());
     }
   });
 };
