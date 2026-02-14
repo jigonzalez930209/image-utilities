@@ -17,6 +17,28 @@ interface ImageCardProps {
 export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess, onPreview, onRemove }) => {
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
+  const [isPendingPreview, setIsPendingPreview] = React.useState(false);
+
+  // Auto-open preview when URL is ready if requested
+  React.useEffect(() => {
+    if (isPendingPreview && image.previewUrl) {
+      setShowPreview(true);
+      setIsPendingPreview(false);
+    }
+  }, [image.previewUrl, isPendingPreview]);
+
+  const handlePreviewTrigger = async () => {
+    if (image.previewUrl) {
+      setShowPreview(true);
+      return;
+    }
+    setIsPendingPreview(true);
+    try {
+      await onPreview(image.id);
+    } catch {
+      setIsPendingPreview(false);
+    }
+  };
 
   const models = [
     { id: 'isnet_quint8', name: 'Express', desc: 'Rápido, ideal para objetos simples.' },
@@ -33,19 +55,27 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
       className="group relative bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden"
     >
       <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
-        <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+        <button 
+          onClick={handlePreviewTrigger}
+          disabled={image.status === 'processing' || isPendingPreview}
+          className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 group/thumb transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+        >
           <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
-          {image.previewUrl && (
-            <div className="absolute inset-0 bg-brand/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <button 
-                onClick={() => setShowPreview(true)}
-                className="p-2 bg-brand text-white rounded-full shadow-lg"
-              >
+          <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-300">
+            <div className="p-2 bg-brand text-white rounded-full shadow-2xl scale-50 group-hover/thumb:scale-100 transition-transform">
+              {image.status === 'processing' || isPendingPreview ? (
+                <RefreshCw size={16} className="animate-spin" />
+              ) : (
                 <Eye size={16} />
-              </button>
+              )}
+            </div>
+          </div>
+          {isPendingPreview && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[2px]">
+              <RefreshCw size={20} className="text-white animate-spin" />
             </div>
           )}
-        </div>
+        </button>
 
         <div className="flex-grow min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -91,7 +121,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
         </div>
 
         <div className="flex items-center gap-3">
-          {image.status === 'idle' && (
+          {image.status === 'idle' && !isPendingPreview && (
             <button
               onClick={() => onProcess(image.id)}
               className="p-2.5 rounded-xl bg-brand text-white hover:bg-brand-accent transition-all shadow-lg shadow-brand/20 active:scale-95"
@@ -99,7 +129,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               <RefreshCw size={20} />
             </button>
           )}
-          {image.status === 'processing' && (
+          {(image.status === 'processing' || isPendingPreview) && (
             <div className="flex flex-col items-end gap-1">
               <div className="animate-spin text-brand">
                 <RefreshCw size={20} />
@@ -194,11 +224,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
 
                   <div className="flex gap-2">
                     <button
-                      onClick={async () => {
-                        await onPreview(image.id);
-                        setShowPreview(true);
-                      }}
-                      disabled={image.status === 'processing'}
+                      onClick={handlePreviewTrigger}
+                      disabled={image.status === 'processing' || isPendingPreview}
                       className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
                     >
                       <Eye size={14} />
