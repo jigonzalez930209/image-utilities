@@ -11,8 +11,15 @@ env.useBrowserCache = true;
 let rmbgPipeline: any = null;
 
 const getCapabilities = async () => {
-  const hasWebGPU = !!(navigator as any).gpu;
-  return { webGPU: hasWebGPU };
+  if (typeof navigator === 'undefined' || !(navigator as any).gpu) {
+    return { webGPU: false };
+  }
+  try {
+    const adapter = await (navigator as any).gpu.requestAdapter();
+    return { webGPU: !!adapter };
+  } catch {
+    return { webGPU: false };
+  }
 };
 
 const getRMBGPipeline = async (id: string) => {
@@ -20,13 +27,15 @@ const getRMBGPipeline = async (id: string) => {
   
   const { webGPU } = await getCapabilities();
   const device = webGPU ? 'webgpu' : 'wasm';
+  // Use quantized model for WASM to avoid minute-long stalls
+  const dtype = webGPU ? 'fp32' : 'q8'; 
   
-  console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device})`);
+  console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device}, Precision: ${dtype})`);
   
-  try {
-    rmbgPipeline = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
-      device: device as any,
-      dtype: device === 'webgpu' ? 'fp32' : 'fp32', // Keeping fp32 for consistency
+  const createPipeline = async (activeDevice: string, activeDtype: string) => {
+    return await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+      device: activeDevice as any,
+      dtype: activeDtype as any,
       progress_callback: (info: any) => {
         if (info.status === 'progress') {
           const fileName = info.file.split('/').pop() || info.file;
@@ -41,9 +50,18 @@ const getRMBGPipeline = async (id: string) => {
         }
       }
     });
+  };
+
+  try {
+    rmbgPipeline = await createPipeline(device, dtype);
   } catch (err) {
-    console.error('[Processor] RMBG Pipeline initialization failed:', err);
-    throw err;
+    console.warn(`[Processor] RMBG Pipeline failed on ${device}, trying fallback WASM/q8...`, err);
+    try {
+      rmbgPipeline = await createPipeline('wasm', 'q8');
+    } catch (finalErr) {
+      console.error('[Processor] RMBG Pipeline FATAL:', finalErr);
+      throw finalErr;
+    }
   }
   return rmbgPipeline;
 };
