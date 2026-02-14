@@ -114,21 +114,25 @@ const cachedFetch = async (url: string | URL | Request, options?: RequestInit): 
  * Pre-fetches all available AI models in the background.
  */
 export const preloadModels = async () => {
-  const models: Array<'isnet' | 'isnet_fp16' | 'isnet_quint8'> = ['isnet_fp16', 'isnet_quint8', 'isnet'];
-  console.log('[Processor] Starting background model pre-loading...');
+  const models = ['isnet_fp16', 'isnet_quint8', 'isnet', 'rmbg_14'] as const;
+  console.log('[Processor] Starting background model pre-loading (including Ultra)...');
   
-  // Create a silent config to trigger downloads
   for (const model of models) {
     try {
-      // Small trick: calling removeBackground with a tiny blank blob triggers the download logic
-      const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
-      await removeBackground(tinyBlob, { 
-        model, 
-        fetchArgs: { mode: 'no-cors' }, // Just to be safe with pre-fetching
-        // We provide our cachedFetch to ensure it gets stored in our 3-day cache
-      } as any);
+      if (model === 'rmbg_14') {
+        // Trigger Transformers.js download/warmup
+        await getRMBGPipeline('preload');
+      } else {
+        // Small trick: calling removeBackground with a tiny blank blob triggers the download logic
+        const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
+        await removeBackground(tinyBlob, { 
+          model, 
+          fetchArgs: { mode: 'no-cors' }, // Just to be safe with pre-fetching
+          // We provide our cachedFetch to ensure it gets stored in our 3-day cache
+        } as any);
+      }
     } catch {
-      // Silence intentional errors since the 1-byte blob will fail processing but success in fetching
+      // Ignore intentional failures
     }
   }
   console.log('[Processor] Pre-loading requests sent.');
@@ -294,11 +298,14 @@ export const convertImage = async (
         const startTime = performance.now();
         if (model === 'rmbg_14' as any) {
           const pipe = await getRMBGPipeline(id);
+          // Explicitly signal start of processing after model is ready
+          window.dispatchEvent(new CustomEvent('image-process-progress', { 
+            detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
+          }));
           const inputUrl = URL.createObjectURL(new Blob([currentBytes.slice()]));
           const output = await pipe(inputUrl);
           URL.revokeObjectURL(inputUrl);
           const mask = output.mask;
-          // Transformers.js returns a RawImage with a canvas/blob capability
           const resultBlob = await mask.toBlob();
           currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
         } else {
@@ -354,6 +361,10 @@ export const previewBackgroundRemoval = async (
 
   if (model === 'rmbg_14') {
     const pipe = await getRMBGPipeline(id);
+    // Explicitly signal start of processing
+    window.dispatchEvent(new CustomEvent('image-process-progress', { 
+      detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
+    }));
     const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
     const output = await pipe(inputUrl);
     URL.revokeObjectURL(inputUrl);

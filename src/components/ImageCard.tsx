@@ -154,7 +154,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                   <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest truncate w-full">
                     {image.progress.stage === 'loading' 
                       ? `Cargando: ${image.progress.key.replace('loading:', '')}` 
-                      : 'Procesando...'}
+                      : 'Analizando...'}
                   </span>
                   <span className="text-[10px] text-brand font-mono font-black">
                     {image.progress.percent}%
