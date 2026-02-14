@@ -14,7 +14,7 @@ export interface ProcessedImage {
   format: ImageFormat;
   removeBackground: boolean;
   bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8';
-  progress?: { key: string; percent: string };
+  progress?: { key: string; percent: string; stage?: 'loading' | 'processing' };
 }
 
 export const useImageProcessor = () => {
@@ -23,10 +23,10 @@ export const useImageProcessor = () => {
   // Add event listener for progress
   useEffect(() => {
     const handler = (e: Event): void => {
-      const customEvent = e as CustomEvent<{ key: string; percent: string; id: string }>;
-      const { key, percent, id } = customEvent.detail;
+      const customEvent = e as CustomEvent<{ key: string; percent: string; id: string; stage?: 'loading' | 'processing' }>;
+      const { key, percent, id, stage } = customEvent.detail;
       setImages(prev => prev.map(img => 
-        img.id === id ? { ...img, progress: { key, percent } } : img
+        img.id === id ? { ...img, progress: { key, percent, stage } } : img
       ));
     };
     window.addEventListener('image-process-progress', handler);
@@ -61,8 +61,15 @@ export const useImageProcessor = () => {
         const newStatus = hasCriticalChanges && (img.status === 'completed' || img.status === 'error')
           ? 'idle'
           : options.status || img.status;
+          
+        // Clear URLs if they change so they reload
+        const newResults = hasCriticalChanges ? {
+          processedUrl: undefined,
+          previewUrl: undefined,
+          progress: undefined
+        } : {};
 
-        return { ...img, ...options, status: newStatus };
+        return { ...img, ...options, ...newResults, status: newStatus };
       })
     );
   }, []);

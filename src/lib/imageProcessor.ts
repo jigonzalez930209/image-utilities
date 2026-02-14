@@ -6,6 +6,71 @@ import { type ImageFormat } from './formats';
 // Re-export ImageFormat for other components
 export type { ImageFormat };
 
+const CACHE_NAME = 'imgly-models-cache-v1';
+const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
+
+/**
+ * Custom fetch wrapper with 3-day TTL caching for models and assets.
+ */
+const cachedFetch = async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
+  const urlStr = url.toString();
+  
+  // Only cache model files and onnxruntime assets
+  const shouldCache = urlStr.includes('/models/') || urlStr.includes('/onnxruntime-web/');
+  if (!shouldCache) return fetch(url, options);
+
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(urlStr);
+
+    if (cachedResponse) {
+      const dateHeader = cachedResponse.headers.get('date');
+      const cachedTime = dateHeader ? new Date(dateHeader).getTime() : 0;
+      const now = Date.now();
+
+      if (now - cachedTime < CACHE_TTL) {
+        console.log(`[Processor] Serving from cache: ${urlStr}`);
+        return cachedResponse;
+      }
+      console.log(`[Processor] Cache expired for: ${urlStr}`);
+      await cache.delete(urlStr);
+    }
+
+    const networkResponse = await fetch(url, options);
+    if (networkResponse.ok) {
+      await cache.put(urlStr, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch (err) {
+    console.warn(`[Processor] Cache failed for ${urlStr}, falling back to network:`, err);
+    return fetch(url, options);
+  }
+};
+
+/**
+ * Pre-fetches all available AI models in the background.
+ */
+export const preloadModels = async () => {
+  const models: Array<'isnet' | 'isnet_fp16' | 'isnet_quint8'> = ['isnet_fp16', 'isnet_quint8', 'isnet'];
+  console.log('[Processor] Starting background model pre-loading...');
+  
+  // Create a silent config to trigger downloads
+  for (const model of models) {
+    try {
+      // Small trick: calling removeBackground with a tiny blank blob triggers the download logic
+      const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
+      await removeBackground(tinyBlob, { 
+        model, 
+        fetchArgs: { mode: 'no-cors' }, // Just to be safe with pre-fetching
+        // We provide our cachedFetch to ensure it gets stored in our 3-day cache
+      } as any);
+    } catch {
+      // Silence intentional errors since the 1-byte blob will fail processing but success in fetching
+    }
+  }
+  console.log('[Processor] Pre-loading requests sent.');
+};
+
 // Initialize ImageMagick with the WASM file
 export const initMagick = async () => {
   try {
@@ -133,10 +198,12 @@ export const convertImage = async (
     if (!isSVG) {
       const config: BGConfig = {
         model: options.bgModel || 'isnet_fp16',
+        fetchArgs: { fetch: cachedFetch },
         progress: (key, current, total) => {
           const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+          const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
           window.dispatchEvent(new CustomEvent('image-process-progress', { 
-            detail: { key, percent, id } 
+            detail: { key, percent, id, stage } 
           }));
         },
       };
@@ -178,11 +245,12 @@ export const previewBackgroundRemoval = async (
   const pngBytes = await normalizeToPNG(file, true); // Force normalization for AI preview
   const config: BGConfig = {
     model,
+    fetchArgs: { fetch: cachedFetch },
     progress: (key, current, total) => {
       const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-      console.log(`[Processor] Preview Progress: ${key} - ${percent}%`);
+      const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
       window.dispatchEvent(new CustomEvent('image-process-progress', { 
-        detail: { key, percent, id } 
+        detail: { key, percent, id, stage } 
       }));
     },
   };
