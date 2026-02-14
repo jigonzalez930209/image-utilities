@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Trash2, RefreshCw, CheckCircle, Download, XCircle, ChevronDown, Eye, ChevronUp, Layers } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
@@ -104,9 +105,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                 <RefreshCw size={20} />
               </div>
               {image.progress && (
-                <span className="text-[10px] text-brand font-mono font-bold">
-                  {image.progress.percent}%
-                </span>
+                <div className="flex flex-col items-end leading-tight">
+                  <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest whitespace-nowrap">
+                    {image.progress.key.includes('model') ? 'Cargando IA' : 'Procesando'}
+                  </span>
+                  <span className="text-[10px] text-brand font-mono font-bold">
+                    {image.progress.percent}%
+                  </span>
+                </div>
               )}
             </div>
           )}
@@ -212,37 +218,37 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
       </AnimatePresence>
 
       <AnimatePresence>
-        {showPreview && image.previewUrl && (
+        {showPreview && image.previewUrl && createPortal(
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999 }}
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
             className="flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95 p-4 md:p-8"
           >
             {/* Header / Controls */}
-            <div className="absolute top-0 inset-x-0 p-6 md:p-8 flex items-center justify-between z-50 max-w-7xl mx-auto w-full">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-brand/20 rounded-2xl flex items-center justify-center text-brand border border-brand/20 shadow-lg shadow-brand/10">
-                  <Layers size={24} />
+            <div className="absolute top-0 inset-x-0 p-6 md:p-12 flex items-center justify-between z-50 max-w-7xl mx-auto w-full">
+              <div className="flex items-center gap-5">
+                <div className="w-14 h-14 bg-brand rounded-2xl flex items-center justify-center text-white shadow-[0_0_30px_rgba(var(--color-brand),0.3)]">
+                  <Layers size={28} />
                 </div>
                 <div>
-                  <h2 className="text-white font-black uppercase tracking-tighter text-2xl md:text-3xl leading-none mb-1">Comparador IA</h2>
-                  <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-brand animate-pulse" /> Haz clic y arrastra el eje central
+                  <h2 className="text-white font-black uppercase tracking-tighter text-3xl md:text-5xl leading-none mb-1">Comparador IA</h2>
+                  <p className="text-brand text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2 opacity-80">
+                    <span className="w-2 h-2 rounded-full bg-brand animate-ping" /> Desliza para inspeccionar
                   </p>
                 </div>
               </div>
               <button 
                 onClick={() => setShowPreview(false)}
-                className="p-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl transition-all border border-white/10 group shadow-xl active:scale-95"
+                className="p-5 bg-white/5 hover:bg-white/10 text-white rounded-3xl transition-all border border-white/10 group shadow-2xl active:scale-90"
               >
-                <XCircle size={28} className="group-hover:rotate-90 transition-transform duration-500" />
+                <XCircle size={36} className="group-hover:rotate-90 transition-transform duration-500" />
               </button>
             </div>
 
             {/* Main Comparison Area */}
-            <div className="relative w-full max-w-5xl flex items-center justify-center z-10">
+            <div className="relative w-full max-w-6xl flex items-center justify-center z-10 px-4">
               <ComparisonSlider 
                 original={image.originalUrl} 
                 processed={image.previewUrl} 
@@ -250,26 +256,27 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             </div>
 
             {/* Footer Actions */}
-            <div className="absolute bottom-0 inset-x-0 p-8 md:p-12 text-center z-50">
-              <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+            <div className="absolute bottom-0 inset-x-0 p-10 md:p-16 text-center z-50 bg-gradient-to-t from-black/80 to-transparent">
+              <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-xl mx-auto">
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="flex-1 px-8 py-4 rounded-2xl bg-white/5 text-white font-bold hover:bg-white/10 transition-all border border-white/5 shadow-xl active:scale-95"
+                  className="flex-1 px-10 py-5 rounded-2xl bg-white/5 text-white/50 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-all border border-white/5 shadow-xl active:scale-95"
                 >
-                  Seguir Ajustando
+                  Regresar
                 </button>
                 <button
                   onClick={() => {
                     setShowPreview(false);
                     onProcess(image.id);
                   }}
-                  className="flex-1 px-8 py-4 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/30 hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-2"
+                  className="flex-1 px-10 py-5 rounded-2xl bg-brand text-white font-black uppercase tracking-widest text-xs shadow-[0_0_40px_rgba(var(--color-brand),0.4)] hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-3"
                 >
-                  Procesar Final <CheckCircle size={22} />
+                  Procesar Final <CheckCircle size={24} />
                 </button>
               </div>
             </div>
-          </motion.div>
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
     </motion.div>
