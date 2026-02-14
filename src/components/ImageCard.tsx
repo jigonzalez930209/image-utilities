@@ -1,111 +1,285 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Trash2, RefreshCw, CheckCircle, Download, XCircle, ChevronDown } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Trash2, RefreshCw, CheckCircle, Download, XCircle, ChevronDown, Eye, ChevronUp, Layers, ArrowRight } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
-import { formatBytes } from '../lib/utils';
+import { formatBytes, cn } from '../lib/utils';
 import { FORMAT_CATEGORIES, type ImageFormat } from '../lib/formats';
 
 interface ImageCardProps {
   image: ProcessedImage;
   onUpdate: (id: string, options: Partial<ProcessedImage>) => void;
   onProcess: (id: string) => void;
+  onPreview: (id: string) => void;
   onRemove: (id: string) => void;
 }
 
-export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess, onRemove }) => {
+export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess, onPreview, onRemove }) => {
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [showPreview, setShowPreview] = React.useState(false);
+
+  const models = [
+    { id: 'isnet_quint8', name: 'Express', desc: 'Rápido, ideal para objetos simples.' },
+    { id: 'isnet_fp16', name: 'Balanced', desc: 'Equilibrio entre velocidad y precisión.' },
+    { id: 'isnet', name: 'Pro', desc: 'Máxima precisión, más lento.' }
+  ] as const;
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row gap-4 items-center"
+      className="group relative bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden"
     >
-      <div className="w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-        <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
-      </div>
-
-      <div className="flex-grow min-w-0">
-        <h3 className="text-white font-medium truncate mb-1">{image.originalName}</h3>
-        <p className="text-white/40 text-xs mb-3">{formatBytes(image.originalSize)}</p>
-        
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="relative group">
-            <select
-              value={image.format}
-              onChange={(e) => onUpdate(image.id, { format: e.target.value as ImageFormat })}
-              className="appearance-none bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-2 pr-8 rounded-lg outline-none border border-white/10 transition-colors cursor-pointer"
-            >
-              {Object.entries(FORMAT_CATEGORIES).map(([category, formats]) => (
-                <optgroup key={category} label={category} className="bg-[#1e293b]">
-                  {formats.map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
-          </div>
-
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <div className="relative flex items-center">
-              <input
-                type="checkbox"
-                checked={image.removeBackground}
-                onChange={(e) => onUpdate(image.id, { removeBackground: e.target.checked })}
-                className="peer absolute opacity-0 w-0 h-0"
-              />
-              <div className="w-10 h-5 bg-white/10 rounded-full transition-colors peer-checked:bg-brand" />
-              <div className="absolute left-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
+      <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
+        <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+          <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
+          {image.previewUrl && (
+            <div className="absolute inset-0 bg-brand/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={() => setShowPreview(true)}
+                className="p-2 bg-brand text-white rounded-full shadow-lg"
+              >
+                <Eye size={16} />
+              </button>
             </div>
-            <span className="text-xs text-white/70 font-medium">Quitar Fondo</span>
-          </label>
+          )}
+        </div>
+
+        <div className="flex-grow min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-white font-medium truncate">{image.originalName}</h3>
+            {image.removeBackground && (
+              <span className="px-1.5 py-0.5 rounded-md bg-brand/20 text-brand text-[8px] font-black uppercase">IA</span>
+            )}
+          </div>
+          <p className="text-white/40 text-xs mb-3">{formatBytes(image.originalSize)}</p>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative group/select">
+              <select
+                value={image.format}
+                onChange={(e) => onUpdate(image.id, { format: e.target.value as ImageFormat })}
+                className="appearance-none bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold px-3 py-1.5 pr-8 rounded-lg outline-none border border-white/5 transition-colors cursor-pointer"
+              >
+                {Object.entries(FORMAT_CATEGORIES).map(([category, formats]) => (
+                  <optgroup key={category} label={category} className="bg-[#0f172a]">
+                    {formats.map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+            </div>
+
+            <button
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all",
+                image.removeBackground 
+                  ? "bg-brand/10 border-brand text-brand" 
+                  : "bg-white/5 border-white/5 text-white/40 hover:text-white"
+              )}
+            >
+              <Layers size={14} />
+              {image.removeBackground ? "IA Activa" : "Configurar IA"}
+              {isSettingsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {image.status === 'idle' && (
+            <button
+              onClick={() => onProcess(image.id)}
+              className="p-2.5 rounded-xl bg-brand text-white hover:bg-brand-accent transition-all shadow-lg shadow-brand/20 active:scale-95"
+            >
+              <RefreshCw size={20} />
+            </button>
+          )}
+          {image.status === 'processing' && (
+            <div className="flex flex-col items-end gap-1">
+              <div className="animate-spin text-brand">
+                <RefreshCw size={20} />
+              </div>
+              {image.progress && (
+                <span className="text-[10px] text-brand font-mono font-bold">
+                  {image.progress.percent}%
+                </span>
+              )}
+            </div>
+          )}
+          {image.status === 'completed' && (
+            <div className="flex gap-2">
+              <a
+                href={image.processedUrl}
+                download={`processed_${image.originalName.split('.')[0]}.${image.format}`}
+                className="p-2.5 rounded-xl bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors shadow-lg shadow-green-500/10"
+              >
+                <Download size={20} />
+              </a>
+              <CheckCircle size={20} className="text-green-500 self-center" />
+            </div>
+          )}
+          <button
+            onClick={() => onRemove(image.id)}
+            className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+          >
+            <Trash2 size={20} />
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {image.status === 'idle' && (
-          <button
-            onClick={() => onProcess(image.id)}
-            className="p-2 rounded-full bg-brand/20 text-brand hover:bg-brand/30 transition-colors"
+      <AnimatePresence>
+        {isSettingsOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="border-t border-white/5 bg-white/[0.02]"
           >
-            <RefreshCw size={20} />
-          </button>
-        )}
-        {image.status === 'processing' && (
-          <div className="flex flex-col items-end gap-1">
-            <div className="animate-spin text-brand">
-              <RefreshCw size={20} />
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Ajustes de Remoción de Fondo</span>
+                <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                  <span className="text-[11px] font-bold text-white/60 group-hover:text-white transition-colors">
+                    {image.removeBackground ? 'Habilitado' : 'Deshabilitado'}
+                  </span>
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={image.removeBackground}
+                      onChange={(e) => onUpdate(image.id, { removeBackground: e.target.checked })}
+                      className="peer absolute opacity-0 w-0 h-0"
+                    />
+                    <div className="w-9 h-5 bg-white/10 rounded-full transition-colors peer-checked:bg-brand" />
+                    <div className="absolute left-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-4 shadow-sm" />
+                  </div>
+                </label>
+              </div>
+
+              {image.removeBackground && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-3 gap-2">
+                    {models.map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => onUpdate(image.id, { bgModel: m.id })}
+                        className={cn(
+                          "px-3 py-2 rounded-xl border text-left transition-all relative overflow-hidden",
+                          image.bgModel === m.id 
+                            ? "bg-brand/10 border-brand text-white" 
+                            : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                        )}
+                      >
+                        <div className="text-[10px] font-black uppercase mb-0.5">{m.name}</div>
+                        <div className="text-[8px] leading-tight opacity-60">{m.desc}</div>
+                        {image.bgModel === m.id && (
+                          <motion.div layoutId="active-model" className="absolute inset-0 border-2 border-brand rounded-xl pointer-events-none" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onPreview(image.id)}
+                      disabled={image.status === 'processing'}
+                      className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
+                    >
+                      <Eye size={14} />
+                      {image.previewUrl ? 'Actualizar Previsualización' : 'Previsualizar'}
+                    </button>
+                    {image.previewUrl && (
+                      <button
+                        onClick={() => setShowPreview(true)}
+                        className="p-2.5 rounded-xl bg-brand/20 text-brand border border-brand/20 hover:bg-brand/30 transition-all"
+                      >
+                        <Layers size={18} />
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              )}
             </div>
-            {image.progress && (
-              <span className="text-[10px] text-brand whitespace-nowrap">
-                {image.progress.percent}% {image.progress.key.split(':').pop()}
-              </span>
-            )}
-          </div>
+          </motion.div>
         )}
-        {image.status === 'completed' && (
-          <div className="flex gap-2">
-            <a
-              href={image.processedUrl}
-              download={`processed_${image.originalName.split('.')[0]}.${image.format}`}
-              className="p-2 rounded-full bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors"
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPreview && image.previewUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-12 backdrop-blur-3xl bg-black/90"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative w-full h-full flex flex-col items-center"
             >
-              <Download size={20} />
-            </a>
-            <CheckCircle size={20} className="text-green-500 self-center" />
-          </div>
+              <div className="absolute top-0 right-0 p-4">
+                <button 
+                  onClick={() => setShowPreview(false)}
+                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all border border-white/10"
+                >
+                  <XCircle size={24} />
+                </button>
+              </div>
+
+              <div className="flex-grow w-full flex flex-col md:flex-row gap-8 items-center justify-center">
+                <div className="flex-1 flex flex-col items-center gap-4">
+                  <div className="text-white/40 text-[10px] font-black uppercase tracking-[0.2em]">Original</div>
+                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-white/10 max-h-[60vh]">
+                    <img src={image.originalUrl} alt="Original" className="max-w-full h-auto object-contain" />
+                  </div>
+                </div>
+                
+                <div className="text-brand animate-pulse">
+                  <ArrowRight size={32} className="rotate-90 md:rotate-0" />
+                </div>
+
+                <div className="flex-1 flex flex-col items-center gap-4">
+                  <div className="text-brand text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Layers size={12} /> Previsualización IA
+                  </div>
+                  <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-brand/30 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] bg-repeat max-h-[60vh]">
+                    <div className="absolute inset-0 bg-white/5 checkerboard opacity-20" />
+                    <img src={image.previewUrl} alt="Preview" className="relative z-10 max-w-full h-auto object-contain" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="py-12 w-full max-w-2xl text-center">
+                <h2 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tighter">¿Se ve bien el recorte?</h2>
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="px-8 py-3 rounded-2xl bg-white/5 text-white/60 font-bold hover:bg-white/10 transition-all border border-white/10"
+                  >
+                    Seguir Ajustando
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPreview(false);
+                      onProcess(image.id);
+                    }}
+                    className="px-8 py-3 rounded-2xl bg-brand text-white font-black shadow-2xl shadow-brand/20 hover:bg-brand-accent transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    Confirmar y Procesar <CheckCircle size={18} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-        {image.status === 'error' && (
-            <XCircle size={20} className="text-red-500" />
-        )}
-        <button
-          onClick={() => onRemove(image.id)}
-          className="p-2 rounded-full bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
-        >
-          <Trash2 size={20} />
-        </button>
-      </div>
+      </AnimatePresence>
     </motion.div>
   );
 };

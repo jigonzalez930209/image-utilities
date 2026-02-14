@@ -8,7 +8,7 @@ import { ImageEditor } from './components/ImageEditor';
 import { cn } from './lib/utils';
 
 const App: React.FC = () => {
-  const { images, addImages, updateImageOptions, processImage, removeImage } = useImageProcessor();
+  const { images, addImages, updateImageOptions, processImage, previewBackground, removeImage } = useImageProcessor();
   const [activeTab, setActiveTab] = useState<'converter' | 'editor'>('converter');
   const [editingImage, setEditingImage] = useState<string | null>(null);
 
@@ -115,6 +115,7 @@ const App: React.FC = () => {
                         image={image}
                         onUpdate={updateImageOptions}
                         onProcess={processImage}
+                        onPreview={previewBackground}
                         onRemove={removeImage}
                       />
                     ))}

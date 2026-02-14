@@ -8,10 +8,12 @@ export interface ProcessedImage {
   originalUrl: string;
   processedUrl?: string;
   processedSize?: number;
+  previewUrl?: string;
   status: 'idle' | 'processing' | 'completed' | 'error';
   error?: string;
   format: ImageFormat;
   removeBackground: boolean;
+  bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8';
   progress?: { key: string; percent: string };
 }
 
@@ -40,6 +42,7 @@ export const useImageProcessor = () => {
       status: 'idle',
       format: 'PNG',
       removeBackground: false,
+      bgModel: 'isnet_fp16',
     }));
     setImages((prev) => [...prev, ...newImages]);
   }, []);
@@ -64,6 +67,7 @@ export const useImageProcessor = () => {
       const options: ProcessOptions = {
         format: img.format,
         removeBackground: img.removeBackground,
+        bgModel: img.bgModel,
       };
 
       const resultBlob = await convertImage(file, options);
@@ -78,6 +82,35 @@ export const useImageProcessor = () => {
       updateImageOptions(id, {
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  }, [images, updateImageOptions]);
+
+  const previewBackground = useCallback(async (id: string): Promise<void> => {
+    const img = images.find((i) => i.id === id);
+    if (!img) return;
+
+    updateImageOptions(id, { status: 'processing', error: undefined });
+
+    try {
+      const response = await fetch(img.originalUrl);
+      const blob = await response.blob();
+      const file = new File([blob], img.originalName, { type: blob.type });
+
+      const { previewBackgroundRemoval } = await import('../lib/imageProcessor');
+      const resultBlob = await previewBackgroundRemoval(file, img.bgModel);
+      
+      const previewUrl = URL.createObjectURL(resultBlob);
+      if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
+
+      updateImageOptions(id, {
+        status: 'idle', // Back to idle after preview
+        previewUrl,
+      });
+    } catch (error) {
+      updateImageOptions(id, {
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Preview failed',
       });
     }
   }, [images, updateImageOptions]);
@@ -98,6 +131,7 @@ export const useImageProcessor = () => {
     addImages,
     updateImageOptions,
     processImage,
+    previewBackground,
     removeImage,
   };
 };

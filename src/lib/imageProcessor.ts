@@ -17,6 +17,7 @@ export const initMagick = async () => {
 export interface ProcessOptions {
   format?: ImageFormat;
   removeBackground?: boolean;
+  bgModel?: 'isnet' | 'isnet_fp16' | 'isnet_quint8';
   quality?: number;
 }
 
@@ -106,6 +107,7 @@ export const convertImage = async (
   // 2. Remove background if requested (Skip for SVG as it's natively transparent)
   if (options.removeBackground && !isSVG) {
     const config: BGConfig = {
+      model: options.bgModel || 'isnet_fp16',
       progress: (key, current, total) => {
         const percent = ((current / total) * 100).toFixed(0);
         const event = new CustomEvent('image-process-progress', { 
@@ -145,6 +147,23 @@ export const convertImage = async (
       reject(error);
     }
   });
+};
+
+export const previewBackgroundRemoval = async (
+  file: File,
+  model: 'isnet' | 'isnet_fp16' | 'isnet_quint8' = 'isnet_fp16'
+): Promise<Blob> => {
+  const config: BGConfig = {
+    model,
+    progress: (key, current, total) => {
+      const percent = ((current / total) * 100).toFixed(0);
+      const event = new CustomEvent('image-process-progress', { 
+        detail: { key, percent, id: file.name } 
+      });
+      window.dispatchEvent(event);
+    },
+  };
+  return await removeBackground(file, config);
 };
 
 export type { ImageFormat };
