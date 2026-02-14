@@ -10,29 +10,41 @@ env.useBrowserCache = true;
 
 let rmbgPipeline: any = null;
 
+const getCapabilities = async () => {
+  const hasWebGPU = !!(navigator as any).gpu;
+  return { webGPU: hasWebGPU };
+};
+
 const getRMBGPipeline = async (id: string) => {
   if (rmbgPipeline) return rmbgPipeline;
   
-  console.log('[Processor] Initializing RMBG-1.4 with WebGPU fallback...');
+  const { webGPU } = await getCapabilities();
+  const device = webGPU ? 'webgpu' : 'wasm';
   
-  rmbgPipeline = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
-    device: 'webgpu', // Force GPU
-    dtype: 'fp32',    // Avoid auto-detection stall
-    progress_callback: (info: any) => {
-      if (info.status === 'progress') {
-        // info.file is the specific model component downloading
-        const fileName = info.file.split('/').pop() || info.file;
-        window.dispatchEvent(new CustomEvent('image-process-progress', { 
-          detail: { 
-            key: `loading:${fileName}`, 
-            percent: Math.round(info.progress).toString(), 
-            id, 
-            stage: 'loading' 
-          } 
-        }));
+  console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device})`);
+  
+  try {
+    rmbgPipeline = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+      device: device as any,
+      dtype: device === 'webgpu' ? 'fp32' : 'fp32', // Keeping fp32 for consistency
+      progress_callback: (info: any) => {
+        if (info.status === 'progress') {
+          const fileName = info.file.split('/').pop() || info.file;
+          window.dispatchEvent(new CustomEvent('image-process-progress', { 
+            detail: { 
+              key: `loading:${fileName}`, 
+              percent: Math.round(info.progress).toString(), 
+              id, 
+              stage: 'loading' 
+            } 
+          }));
+        }
       }
-    }
-  });
+    });
+  } catch (err) {
+    console.error('[Processor] RMBG Pipeline initialization failed:', err);
+    throw err;
+  }
   return rmbgPipeline;
 };
 
