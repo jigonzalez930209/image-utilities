@@ -13,12 +13,18 @@ let rmbgPipeline: any = null;
 const getRMBGPipeline = async (id: string) => {
   if (rmbgPipeline) return rmbgPipeline;
   
+  console.log('[Processor] Initializing RMBG-1.4 with WebGPU fallback...');
+  
   rmbgPipeline = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+    device: 'webgpu', // Force GPU
+    dtype: 'fp32',    // Avoid auto-detection stall
     progress_callback: (info: any) => {
       if (info.status === 'progress') {
+        // info.file is the specific model component downloading
+        const fileName = info.file.split('/').pop() || info.file;
         window.dispatchEvent(new CustomEvent('image-process-progress', { 
           detail: { 
-            key: `loading:${info.file}`, 
+            key: `loading:${fileName}`, 
             percent: Math.round(info.progress).toString(), 
             id, 
             stage: 'loading' 

@@ -150,9 +150,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                 <RefreshCw size={20} />
               </div>
               {image.progress && (
-                <div className="flex flex-col items-end leading-tight">
-                  <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest whitespace-nowrap">
-                    {image.progress.key.includes('model') ? 'Cargando IA' : 'Procesando'}
+                <div className="flex flex-col items-end leading-tight text-right max-w-[120px]">
+                  <span className="text-[7px] text-brand/60 font-black uppercase tracking-widest truncate w-full">
+                    {image.progress.stage === 'loading' 
+                      ? `Cargando: ${image.progress.key.replace('loading:', '')}` 
+                      : 'Procesando...'}
                   </span>
                   <span className="text-[10px] text-brand font-mono font-black">
                     {image.progress.percent}%
