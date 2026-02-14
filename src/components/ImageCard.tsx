@@ -194,7 +194,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
 
                   <div className="flex gap-2">
                     <button
-                      onClick={() => onPreview(image.id)}
+                      onClick={async () => {
+                        await onPreview(image.id);
+                        setShowPreview(true);
+                      }}
                       disabled={image.status === 'processing'}
                       className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
                     >
@@ -223,19 +226,19 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99999 }}
+            style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 999999 }}
             className="flex flex-col items-center justify-center backdrop-blur-3xl bg-black/95 p-4 md:p-8"
           >
             {/* Header / Controls */}
             <div className="absolute top-0 inset-x-0 p-6 md:p-12 flex items-center justify-between z-50 max-w-7xl mx-auto w-full">
               <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-brand rounded-2xl flex items-center justify-center text-white shadow-[0_0_30px_rgba(var(--color-brand),0.3)]">
+                <div className="w-14 h-14 bg-brand rounded-2xl flex items-center justify-center text-white shadow-[0_0_40px_rgba(var(--color-brand),0.4)]">
                   <Layers size={28} />
                 </div>
                 <div>
-                  <h2 className="text-white font-black uppercase tracking-tighter text-3xl md:text-5xl leading-none mb-1">Comparador IA</h2>
-                  <p className="text-brand text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2 opacity-80">
-                    <span className="w-2 h-2 rounded-full bg-brand animate-ping" /> Desliza para inspeccionar
+                  <h2 className="text-white font-black uppercase tracking-tighter text-3xl md:text-5xl leading-none mb-1">Comparador Premium</h2>
+                  <p className="text-brand text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand animate-ping" /> Desliza para comparar
                   </p>
                 </div>
               </div>
@@ -256,7 +259,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             </div>
 
             {/* Footer Actions */}
-            <div className="absolute bottom-0 inset-x-0 p-10 md:p-16 text-center z-50 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="absolute bottom-0 inset-x-0 p-10 md:p-16 text-center z-50 bg-gradient-to-t from-black/90 to-transparent">
               <div className="flex flex-col sm:flex-row gap-6 justify-center max-w-xl mx-auto">
                 <button
                   onClick={() => setShowPreview(false)}
@@ -269,7 +272,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                     setShowPreview(false);
                     onProcess(image.id);
                   }}
-                  className="flex-1 px-10 py-5 rounded-2xl bg-brand text-white font-black uppercase tracking-widest text-xs shadow-[0_0_40px_rgba(var(--color-brand),0.4)] hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-3"
+                  className="flex-1 px-10 py-5 rounded-2xl bg-brand text-white font-black uppercase tracking-widest text-xs shadow-[0_0_50px_rgba(var(--color-brand),0.4)] hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-3"
                 >
                   Procesar Final <CheckCircle size={24} />
                 </button>
