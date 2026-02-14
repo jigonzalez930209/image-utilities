@@ -13,7 +13,7 @@ export interface ProcessedImage {
   error?: string;
   format: ImageFormat;
   removeBackground: boolean;
-  bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8';
+  bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
   progress?: { key: string; percent: string; stage?: 'loading' | 'processing' };
 }
 

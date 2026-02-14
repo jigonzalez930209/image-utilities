@@ -1,7 +1,34 @@
 import { removeBackground, type Config as BGConfig } from '@imgly/background-removal';
 import { initializeImageMagick, ImageMagick, MagickFormat } from '@imagemagick/magick-wasm';
+import { pipeline, env } from '@huggingface/transformers';
 import heic2any from 'heic2any';
 import { type ImageFormat } from './formats';
+
+// Configure transformers to use local cache and webgpu if available
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+let rmbgPipeline: any = null;
+
+const getRMBGPipeline = async (id: string) => {
+  if (rmbgPipeline) return rmbgPipeline;
+  
+  rmbgPipeline = await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+    progress_callback: (info: any) => {
+      if (info.status === 'progress') {
+        window.dispatchEvent(new CustomEvent('image-process-progress', { 
+          detail: { 
+            key: `loading:${info.file}`, 
+            percent: Math.round(info.progress).toString(), 
+            id, 
+            stage: 'loading' 
+          } 
+        }));
+      }
+    }
+  });
+  return rmbgPipeline;
+};
 
 // Re-export ImageFormat for other components
 export type { ImageFormat };
@@ -89,7 +116,7 @@ export const initMagick = async () => {
 export interface ProcessOptions {
   format?: ImageFormat;
   removeBackground?: boolean;
-  bgModel?: 'isnet' | 'isnet_fp16' | 'isnet_quint8';
+  bgModel?: 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
   quality?: number;
 }
 
@@ -227,22 +254,33 @@ export const convertImage = async (
   if (options.removeBackground) {
     const isSVG = file.name.toLowerCase().endsWith('.svg');
     if (!isSVG) {
-      const config: BGConfig = {
-        model,
-        fetchArgs: { fetch: cachedFetch },
-        progress: (key, current, total) => {
-          const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-          const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
-          window.dispatchEvent(new CustomEvent('image-process-progress', { 
-            detail: { key, percent, id, stage } 
-          }));
-        },
-      };
       try {
         const startTime = performance.now();
-        const inputBlob = new Blob([currentBytes.slice()], { type: 'image/png' });
-        const result = await removeBackground(inputBlob, config);
-        currentBytes = new Uint8Array(await result.arrayBuffer());
+        if (model === 'rmbg_14' as any) {
+          const pipe = await getRMBGPipeline(id);
+          const inputUrl = URL.createObjectURL(new Blob([currentBytes.slice()]));
+          const output = await pipe(inputUrl);
+          URL.revokeObjectURL(inputUrl);
+          const mask = output.mask;
+          // Transformers.js returns a RawImage with a canvas/blob capability
+          const resultBlob = await mask.toBlob();
+          currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
+        } else {
+          const config: BGConfig = {
+            model: model as any,
+            fetchArgs: { fetch: cachedFetch },
+            progress: (key, current, total) => {
+              const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+              const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
+              window.dispatchEvent(new CustomEvent('image-process-progress', { 
+                detail: { key, percent, id, stage } 
+              }));
+            },
+          };
+          const inputBlob = new Blob([currentBytes.slice()], { type: 'image/png' });
+          const result = await removeBackground(inputBlob, config);
+          currentBytes = new Uint8Array(await result.arrayBuffer());
+        }
         console.log(`[Processor] AI Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
       } catch (err) {
         console.error('[Processor] BG Removal Failed:', err);
@@ -270,24 +308,36 @@ export const convertImage = async (
 export const previewBackgroundRemoval = async (
   file: File,
   id: string,
-  model: 'isnet' | 'isnet_fp16' | 'isnet_quint8' = 'isnet_fp16'
+  model: string = 'isnet_fp16'
 ): Promise<Blob> => {
   console.log(`[Processor] Previewing: ${id} (Model: ${model})`);
   const pngBytes = await normalizeToPNG(file, true);
-  const config: BGConfig = {
-    model,
-    fetchArgs: { fetch: cachedFetch },
-    progress: (key, current, total) => {
-      const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-      const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
-      window.dispatchEvent(new CustomEvent('image-process-progress', { 
-        detail: { key, percent, id, stage } 
-      }));
-    },
-  };
+  
   const startTime = performance.now();
-  const inputBlob = new Blob([pngBytes.slice()], { type: 'image/png' });
-  const result = await removeBackground(inputBlob, config);
+  let result: Blob;
+
+  if (model === 'rmbg_14') {
+    const pipe = await getRMBGPipeline(id);
+    const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
+    const output = await pipe(inputUrl);
+    URL.revokeObjectURL(inputUrl);
+    result = await output.mask.toBlob();
+  } else {
+    const config: BGConfig = {
+      model: model as any,
+      fetchArgs: { fetch: cachedFetch },
+      progress: (key, current, total) => {
+        const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+        const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
+        window.dispatchEvent(new CustomEvent('image-process-progress', { 
+          detail: { key, percent, id, stage } 
+        }));
+      },
+    };
+    const inputBlob = new Blob([pngBytes.slice()], { type: 'image/png' });
+    result = await removeBackground(inputBlob, config);
+  }
+
   console.log(`[Processor] Preview Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
   return result;
 };

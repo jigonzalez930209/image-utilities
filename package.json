@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@imagemagick/magick-wasm": "^0.0.38",
     "@imgly/background-removal": "^1.7.0",
     "@tailwindcss/vite": "^4.1.18",
