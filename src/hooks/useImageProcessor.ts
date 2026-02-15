@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { convertImage, type ProcessOptions, type ImageFormat } from '../lib/imageProcessor';
+import { convertImage, type ProcessOptions, type ImageFormat } from '../lib/imageProcessor/index';
 
 export interface ProcessedImage {
   id: string;
@@ -118,7 +118,7 @@ export const useImageProcessor = () => {
       const blob = await response.blob();
       const file = new File([blob], img.originalName, { type: blob.type });
 
-      const { previewBackgroundRemoval } = await import('../lib/imageProcessor');
+      const { previewBackgroundRemoval } = await import('../lib/imageProcessor/index');
       const resultBlob = await previewBackgroundRemoval(file, id, img.bgModel);
       
       const previewUrl = URL.createObjectURL(resultBlob);
@@ -133,6 +133,7 @@ export const useImageProcessor = () => {
         status: 'error',
         error: error instanceof Error ? error.message : 'Preview failed',
       });
+      throw error;
     }
   }, [images, updateImageOptions]);
 

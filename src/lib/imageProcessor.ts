@@ -12,6 +12,27 @@ let rmbgPipeline: any = null;
 let rmbgPipelinePromise: Promise<any> | null = null;
 const activeLoadingIds = new Set<string>();
 
+type BackgroundModel = 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
+type FastBackgroundModel = Exclude<BackgroundModel, 'rmbg_14'>;
+
+const RMBG_INIT_TIMEOUT_MS = 30_000;
+const RMBG_INFERENCE_TIMEOUT_MS = 45_000;
+
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 const getCapabilities = async () => {
   if (typeof navigator === 'undefined' || !(navigator as any).gpu) {
     return { webGPU: false };
@@ -45,7 +66,8 @@ const getRMBGPipeline = async (id: string) => {
     console.log(`[Processor] Initializing RMBG-1.4 (Device: ${device}, Precision: ${dtype})`);
     
     const createPipeline = async (activeDevice: string, activeDtype: string) => {
-      return await pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+      return await withTimeout(
+        pipeline('image-segmentation', 'briaai/RMBG-1.4', {
         device: activeDevice as any,
         dtype: activeDtype as any,
         progress_callback: (info: any) => {
@@ -66,7 +88,10 @@ const getRMBGPipeline = async (id: string) => {
             });
           }
         }
-      });
+      }),
+      RMBG_INIT_TIMEOUT_MS,
+      `RMBG pipeline initialization (${activeDevice}/${activeDtype})`
+    );
     };
 
     try {
@@ -76,7 +101,7 @@ const getRMBGPipeline = async (id: string) => {
       console.log(`[Processor] Warming up RMBG-1.4...`);
       const canvas = document.createElement('canvas');
       canvas.width = 1; canvas.height = 1;
-      await pipe(canvas.toDataURL());
+      await withTimeout(pipe(canvas.toDataURL()), RMBG_INFERENCE_TIMEOUT_MS, 'RMBG warmup');
       
       rmbgPipeline = pipe;
       return pipe;
@@ -92,7 +117,10 @@ const getRMBGPipeline = async (id: string) => {
         throw finalErr;
       }
     }
-  })();
+  })().catch((err) => {
+    rmbgPipelinePromise = null;
+    throw err;
+  });
 
   try {
     return await rmbgPipelinePromise;
@@ -104,7 +132,7 @@ const getRMBGPipeline = async (id: string) => {
 // Re-export ImageFormat for other components
 export type { ImageFormat };
 
-const CACHE_NAME = 'imgly-models-cache-v1';
+const CACHE_NAME = 'imgly-models-cache-v2';
 const CACHE_TTL = 3 * 24 * 60 * 60 * 1000; // 3 days in ms
 
 /**
@@ -149,28 +177,206 @@ const cachedFetch = async (url: string | URL | Request, options?: RequestInit): 
  * Pre-fetches all available AI models in the background.
  */
 export const preloadModels = async () => {
-  const models = ['isnet_fp16', 'isnet_quint8', 'isnet', 'rmbg_14'] as const;
-  console.log('[Processor] Starting background model pre-loading (including Ultra)...');
+  const models: FastBackgroundModel[] = ['isnet_quint8', 'isnet_fp16', 'isnet'];
+  console.log('[Processor] Starting background model pre-loading...');
   
   for (const model of models) {
     try {
-      if (model === 'rmbg_14') {
-        // Trigger Transformers.js download/warmup
-        await getRMBGPipeline('preload');
-      } else {
-        // Small trick: calling removeBackground with a tiny blank blob triggers the download logic
-        const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
-        await removeBackground(tinyBlob, { 
-          model, 
-          fetchArgs: { mode: 'no-cors' }, // Just to be safe with pre-fetching
-          // We provide our cachedFetch to ensure it gets stored in our 3-day cache
-        } as any);
-      }
+      // Small trick: calling removeBackground with a tiny blank blob triggers the download logic
+      const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
+      await removeBackground(tinyBlob, {
+        model,
+        fetchArgs: { mode: 'no-cors' }, // Just to be safe with pre-fetching
+        // We provide our cachedFetch to ensure it gets stored in our 3-day cache
+      } as any);
     } catch {
       // Ignore intentional failures
     }
   }
-  console.log('[Processor] Pre-loading requests sent.');
+  console.log('[Processor] Pre-loading requests sent. Ultra model loads on demand.');
+};
+
+const runImglyBackgroundRemoval = async (
+  pngBytes: Uint8Array,
+  id: string,
+  model: FastBackgroundModel
+): Promise<Blob> => {
+  const config: BGConfig = {
+    model: model as any,
+    fetchArgs: { fetch: cachedFetch },
+    progress: (key, current, total) => {
+      const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+      const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
+      window.dispatchEvent(new CustomEvent('image-process-progress', {
+        detail: { key, percent, id, stage }
+      }));
+    },
+  };
+
+  const inputBlob = new Blob([pngBytes.slice()], { type: 'image/png' });
+  return await removeBackground(inputBlob, config);
+};
+
+const isOrtMismatchError = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message || '';
+  return msg.includes('_OrtGetInputOutputMetadata') || msg.includes('Failed to create session');
+};
+
+const IMGly_FALLBACK_CHAIN: Record<FastBackgroundModel, FastBackgroundModel[]> = {
+  isnet_quint8: ['isnet_fp16', 'isnet'],
+  isnet_fp16: ['isnet'],
+  isnet: [],
+};
+
+const runFastModelBackgroundRemoval = async (
+  pngBytes: Uint8Array,
+  id: string,
+  preferredModel: FastBackgroundModel,
+  stageLabel: string
+): Promise<Blob> => {
+  const candidates = [preferredModel, ...IMGly_FALLBACK_CHAIN[preferredModel]];
+  let lastErr: unknown = null;
+
+  for (const candidate of candidates) {
+    try {
+      if (candidate !== preferredModel) {
+        console.warn(`[Processor] ${stageLabel}: ${preferredModel} failed, retrying with ${candidate}.`);
+      }
+      return await runImglyBackgroundRemoval(pngBytes, id, candidate);
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Processor] ${stageLabel}: ${candidate} failed.`, err);
+    }
+  }
+
+  if (isOrtMismatchError(lastErr)) {
+    throw new Error(
+      'Los modelos rápidos no pudieron inicializar ONNX Runtime. Ajusta dependencias: onnxruntime-web@1.21.0-dev.20250206-d981b153d3 y reinstala paquetes.'
+    );
+  }
+
+  if (lastErr instanceof Error) throw lastErr;
+  throw new Error('Fast background-removal models failed for an unknown reason.');
+};
+
+const loadImageFromBlob = (blob: Blob): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Failed to decode image blob'));
+    };
+
+    img.src = url;
+  });
+};
+
+const applyMaskToSource = async (sourcePngBytes: Uint8Array, maskBlob: Blob): Promise<Blob> => {
+  const sourceBlob = new Blob([sourcePngBytes.slice()], { type: 'image/png' });
+  const [sourceImage, maskImage] = await Promise.all([
+    loadImageFromBlob(sourceBlob),
+    loadImageFromBlob(maskBlob),
+  ]);
+
+  const width = sourceImage.naturalWidth || sourceImage.width;
+  const height = sourceImage.naturalHeight || sourceImage.height;
+
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+  const sourceCtx = sourceCanvas.getContext('2d');
+  if (!sourceCtx) throw new Error('Canvas context not available for source composition');
+
+  const maskCanvas = document.createElement('canvas');
+  maskCanvas.width = width;
+  maskCanvas.height = height;
+  const maskCtx = maskCanvas.getContext('2d');
+  if (!maskCtx) throw new Error('Canvas context not available for mask composition');
+
+  sourceCtx.drawImage(sourceImage, 0, 0, width, height);
+  maskCtx.drawImage(maskImage, 0, 0, width, height);
+
+  const sourceData = sourceCtx.getImageData(0, 0, width, height);
+  const maskData = maskCtx.getImageData(0, 0, width, height);
+
+  let brightPixels = 0;
+  const totalPixels = width * height;
+
+  for (let i = 0; i < maskData.data.length; i += 4) {
+    const luma = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+    if (luma > 127) brightPixels += 1;
+  }
+
+  // Some models output white-foreground masks, others the inverse.
+  const shouldInvertMask = brightPixels / Math.max(totalPixels, 1) > 0.65;
+
+  for (let i = 0; i < sourceData.data.length; i += 4) {
+    const luma = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
+    const normalizedAlpha = (shouldInvertMask ? 255 - luma : luma) / 255;
+    sourceData.data[i + 3] = Math.round(sourceData.data[i + 3] * normalizedAlpha);
+  }
+
+  sourceCtx.putImageData(sourceData, 0, 0);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    sourceCanvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to encode composed RMBG output as PNG'));
+        return;
+      }
+      resolve(blob);
+    }, 'image/png');
+  });
+};
+
+const extractRmbgBlob = async (output: any, sourcePngBytes: Uint8Array): Promise<Blob> => {
+  const first = Array.isArray(output) ? output[0] : output;
+
+  if (first?.mask && typeof first.mask.toBlob === 'function') {
+    const maskBlob = await first.mask.toBlob();
+    return await applyMaskToSource(sourcePngBytes, maskBlob);
+  }
+
+  const blobSource = first;
+
+  if (!blobSource || typeof blobSource.toBlob !== 'function') {
+    const shape = Array.isArray(output)
+      ? `array(len=${output.length})`
+      : typeof output;
+    throw new Error(`RMBG output does not expose toBlob() (shape=${shape})`);
+  }
+
+  return await blobSource.toBlob();
+};
+
+const runRmbgBackgroundRemoval = async (
+  pngBytes: Uint8Array,
+  id: string,
+  stageLabel: string
+): Promise<Blob> => {
+  const pipe = await getRMBGPipeline(id);
+  window.dispatchEvent(new CustomEvent('image-process-progress', {
+    detail: { key: 'process:start', percent: '0', id, stage: 'processing' }
+  }));
+
+  console.log(`[Processor] Starting ${stageLabel} inference for ${id}...`);
+  const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
+
+  try {
+    const output = await withTimeout<any>(pipe(inputUrl), RMBG_INFERENCE_TIMEOUT_MS, `RMBG ${stageLabel} inference`);
+    console.log(`[Processor] ${stageLabel} inference completed for ${id}`);
+    return await extractRmbgBlob(output, pngBytes);
+  } finally {
+    URL.revokeObjectURL(inputUrl);
+  }
 };
 
 // Initialize ImageMagick with the WASM file
@@ -191,7 +397,7 @@ export const initMagick = async () => {
 export interface ProcessOptions {
   format?: ImageFormat;
   removeBackground?: boolean;
-  bgModel?: 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
+  bgModel?: BackgroundModel;
   quality?: number;
 }
 
@@ -332,37 +538,23 @@ export const convertImage = async (
       try {
         const startTime = performance.now();
         if (model === 'rmbg_14' as any) {
-          const pipe = await getRMBGPipeline(id);
-          window.dispatchEvent(new CustomEvent('image-process-progress', { 
-            detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
-          }));
-          console.log(`[Processor] Starting inference for ${id}...`);
-          const inputUrl = URL.createObjectURL(new Blob([currentBytes.slice()]));
-          const output = await pipe(inputUrl);
-          URL.revokeObjectURL(inputUrl);
-          console.log(`[Processor] Inference completed for ${id}`);
-          const mask = output.mask;
-          const resultBlob = await mask.toBlob();
-          currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
+          try {
+            const resultBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG');
+            currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
+          } catch (rmbgErr) {
+            console.warn('[Processor] RMBG unavailable, falling back to Balanced model (isnet_fp16).', rmbgErr);
+            const fallbackResult = await runFastModelBackgroundRemoval(currentBytes, id, 'isnet_fp16', 'Ultra fallback');
+            currentBytes = new Uint8Array(await fallbackResult.arrayBuffer());
+          }
         } else {
-          const config: BGConfig = {
-            model: model as any,
-            fetchArgs: { fetch: cachedFetch },
-            progress: (key, current, total) => {
-              const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-              const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
-              window.dispatchEvent(new CustomEvent('image-process-progress', { 
-                detail: { key, percent, id, stage } 
-              }));
-            },
-          };
-          const inputBlob = new Blob([currentBytes.slice()], { type: 'image/png' });
-          const result = await removeBackground(inputBlob, config);
+          const result = await runFastModelBackgroundRemoval(currentBytes, id, model as FastBackgroundModel, 'Fast model');
           currentBytes = new Uint8Array(await result.arrayBuffer());
         }
         console.log(`[Processor] AI Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
       } catch (err) {
-        console.error('[Processor] BG Removal Failed:', err);
+        const failure = err instanceof Error ? err : new Error(String(err));
+        console.error('[Processor] BG Removal Failed:', failure);
+        throw failure;
       }
     }
   }
@@ -396,30 +588,14 @@ export const previewBackgroundRemoval = async (
   let result: Blob;
 
   if (model === 'rmbg_14') {
-    const pipe = await getRMBGPipeline(id);
-    window.dispatchEvent(new CustomEvent('image-process-progress', { 
-      detail: { key: 'process:start', percent: '0', id, stage: 'processing' } 
-    }));
-    console.log(`[Processor] Starting preview inference for ${id}...`);
-    const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
-    const output = await pipe(inputUrl);
-    URL.revokeObjectURL(inputUrl);
-    console.log(`[Processor] Preview inference completed for ${id}`);
-    result = await output.mask.toBlob();
+    try {
+      result = await runRmbgBackgroundRemoval(pngBytes, id, 'preview RMBG');
+    } catch (rmbgErr) {
+      console.warn('[Processor] RMBG preview unavailable, falling back to Balanced model (isnet_fp16).', rmbgErr);
+      result = await runFastModelBackgroundRemoval(pngBytes, id, 'isnet_fp16', 'Ultra preview fallback');
+    }
   } else {
-    const config: BGConfig = {
-      model: model as any,
-      fetchArgs: { fetch: cachedFetch },
-      progress: (key, current, total) => {
-        const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-        const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
-        window.dispatchEvent(new CustomEvent('image-process-progress', { 
-          detail: { key, percent, id, stage } 
-        }));
-      },
-    };
-    const inputBlob = new Blob([pngBytes.slice()], { type: 'image/png' });
-    result = await removeBackground(inputBlob, config);
+    result = await runFastModelBackgroundRemoval(pngBytes, id, model as FastBackgroundModel, 'Fast preview');
   }
 
   console.log(`[Processor] Preview Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);

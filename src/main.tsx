@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { initMagick, preloadModels } from './lib/imageProcessor'
+import { initMagick, preloadModels } from './lib/imageProcessor/index'
 
 // Initialize Magick-WASM before rendering
 initMagick().then(() => {
