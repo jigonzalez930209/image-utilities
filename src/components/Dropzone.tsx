@@ -60,10 +60,10 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
             {isDragActive ? <ImageIcon size={48} className="text-brand" /> : <Upload size={48} />}
           </motion.div>
           <p className="mb-2 text-xl font-semibold text-white">
-            {isDragActive ? "Sueltalo aquí" : "Arrastra tus imágenes aquí"}
+            {isDragActive ? "Drop here" : "Drag your images here"}
           </p>
           <p className="text-sm text-white/40">
-            PNG, JPG, WebP o HEIC (Max. 10MB)
+            PNG, JPG, WebP or HEIC (Max. 10MB)
           </p>
         </div>
         <input id="file-upload" type="file" className="hidden" multiple accept="image/*" onChange={handleChange} />
