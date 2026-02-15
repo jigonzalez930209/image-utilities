@@ -38,9 +38,9 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                 <Layers size={28} />
               </div>
               <div>
-                <h2 className="text-white font-black uppercase tracking-tighter text-3xl md:text-5xl leading-none mb-1">Comparador Premium</h2>
+                <h2 className="text-white font-black uppercase tracking-tighter text-3xl md:text-5xl leading-none mb-1">Premium comparison</h2>
                 <p className="text-brand text-xs font-black uppercase tracking-[0.3em] flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-brand animate-ping" /> Desliza para comparar
+                  <span className="w-2.5 h-2.5 rounded-full bg-brand animate-ping" /> Drag to compare
                 </p>
               </div>
             </div>
@@ -67,7 +67,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                 onClick={onClose}
                 className="flex-1 px-10 py-5 rounded-2xl bg-white/5 text-white/50 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-all border border-white/5 shadow-xl active:scale-95"
               >
-                Regresar
+                Back
               </button>
               <button
                 onClick={() => {
@@ -76,7 +76,7 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({
                 }}
                 className="flex-1 px-10 py-5 rounded-2xl bg-brand text-white font-black uppercase tracking-widest text-xs shadow-[0_0_50px_rgba(var(--color-brand),0.4)] hover:bg-brand-accent transition-all active:scale-95 flex items-center justify-center gap-3"
               >
-                Procesar Final <CheckCircle size={24} />
+                Process <CheckCircle size={24} />
               </button>
             </div>
           </div>
@@ -180,7 +180,7 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({ original, processed
       </div>
       <div className="absolute top-6 right-6 z-40 flex flex-col gap-2 pointer-events-none">
         <div className="px-4 py-2 bg-brand/80 backdrop-blur-xl border border-brand/20 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-2xl">
-          Procesado IA
+          AI processed
         </div>
       </div>
     </div>
