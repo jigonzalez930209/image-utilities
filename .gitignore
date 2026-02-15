@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Modelos IA (~280 MB): se descargan con pnpm run download:bg (y en CI antes del build)
+public/assets/background-removal/
