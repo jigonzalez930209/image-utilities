@@ -1,4 +1,4 @@
-import { pipeline, env } from '@huggingface/transformers';
+import { pipeline, env, type ImageSegmentationPipeline } from '@huggingface/transformers';
 import { dispatchImageProgress } from './events';
 import { RMBG_INIT_TIMEOUT_MS, RMBG_INFERENCE_TIMEOUT_MS, withTimeout } from './timeout';
 
@@ -6,48 +6,71 @@ env.allowLocalModels = false;
 env.useBrowserCache = true;
 
 // Force Transformers.js to use local ONNX Runtime assets
-// This matches the local onnxruntime-web version and prevents mismatch errors
-if (env.backends?.onnx?.wasm) {
-  env.backends.onnx.wasm.wasmPaths = '/assets/onnxruntime/';
-}
+// if (env.backends?.onnx?.wasm) {
+//   env.backends.onnx.wasm.wasmPaths = '/assets/onnxruntime/';
+// }
 
-let rmbgPipeline: any = null;
-let rmbgPipelinePromise: Promise<any> | null = null;
+type RMBGPipeline = ImageSegmentationPipeline;
+
+let rmbgPipeline: RMBGPipeline | null = null;
+let rmbgPipelinePromise: Promise<RMBGPipeline> | null = null;
 const activeLoadingIds = new Set<string>();
 
-const getCapabilities = async (): Promise<{ webGPU: boolean }> => {
-  if (typeof navigator === 'undefined' || !(navigator as any).gpu) {
+interface Capabilities {
+  webGPU: boolean;
+}
+
+interface NavigatorWithGPU extends Navigator {
+  gpu: {
+    requestAdapter: () => Promise<object | null>;
+  };
+}
+
+const getCapabilities = async (): Promise<Capabilities> => {
+  if (typeof navigator === 'undefined' || !('gpu' in navigator)) {
     return { webGPU: false };
   }
 
   try {
-    const adapter = await (navigator as any).gpu.requestAdapter();
+    const nav = navigator as NavigatorWithGPU;
+    const adapter = await nav.gpu.requestAdapter();
     return { webGPU: !!adapter };
   } catch {
     return { webGPU: false };
   }
 };
 
-const createRmbgPipeline = async (activeDevice: string, activeDtype: string): Promise<any> => {
+type ProgressInfo = 
+  | { status: 'initiate'; file: string; name: string }
+  | { status: 'download'; file: string; name: string }
+  | { status: 'progress'; file: string; name: string; progress: number; loaded: number; total: number }
+  | { status: 'done'; file: string; name: string }
+  | { status: 'ready'; task: string; model: string };
+
+const createRmbgPipeline = async (activeDevice: string, activeDtype: string): Promise<RMBGPipeline> => {
+  const options = {
+    device: activeDevice,
+    dtype: activeDtype,
+    progress_callback: (info: ProgressInfo) => {
+      if (info.status !== 'progress') return;
+      const fileName = info.file.split('/').pop() || info.file;
+      const percent = Math.round(info.progress).toString();
+      activeLoadingIds.forEach((targetId) => {
+        dispatchImageProgress(targetId, `loading:${fileName}`, percent, 'loading');
+      });
+    },
+  } as import('@huggingface/transformers').PretrainedModelOptions;
+
+  const pipePromise = pipeline('image-segmentation', 'briaai/RMBG-1.4', options);
+  
   return await withTimeout(
-    pipeline('image-segmentation', 'briaai/RMBG-1.4', {
-      device: activeDevice as any,
-      dtype: activeDtype as any,
-      progress_callback: (info: any) => {
-        if (info.status !== 'progress') return;
-        const fileName = info.file.split('/').pop() || info.file;
-        const percent = Math.round(info.progress).toString();
-        activeLoadingIds.forEach((targetId) => {
-          dispatchImageProgress(targetId, `loading:${fileName}`, percent, 'loading');
-        });
-      },
-    }),
+    pipePromise as Promise<RMBGPipeline>,
     RMBG_INIT_TIMEOUT_MS,
     `RMBG pipeline initialization (${activeDevice}/${activeDtype})`
   );
 };
 
-export const getRMBGPipeline = async (id: string): Promise<any> => {
+export const getRMBGPipeline = async (id: string): Promise<RMBGPipeline> => {
   if (rmbgPipeline) return rmbgPipeline;
 
   activeLoadingIds.add(id);
@@ -70,12 +93,13 @@ export const getRMBGPipeline = async (id: string): Promise<any> => {
         rmbgPipeline = pipe;
         return pipe;
       } catch (err) {
-        console.warn(`[Processor] RMBG Pipeline failed on ${device}, trying fallback WASM/q8...`, err);
+        const fallbackErr = err as Error;
+        console.warn(`[Processor] RMBG Pipeline failed on ${device}, trying fallback WASM/q8...`, fallbackErr);
         const pipe = await createRmbgPipeline('wasm', 'q8');
         rmbgPipeline = pipe;
         return pipe;
       }
-    })().catch((err) => {
+    })().catch((err: Error) => {
       rmbgPipelinePromise = null;
       throw err;
     });

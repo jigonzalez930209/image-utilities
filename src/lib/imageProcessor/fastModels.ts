@@ -3,17 +3,27 @@ import { cachedFetch } from './cache';
 import { dispatchImageProgress } from './events';
 import type { FastBackgroundModel } from './types';
 
-const buildConfig = (id: string, model: FastBackgroundModel): BGConfig => ({
-  model: model as any,
-  fetchArgs: { fetch: cachedFetch },
-  // Force local ONNX Runtime assets to prevent version mismatches
-  publicPath: '/assets/onnxruntime/',
-  progress: (key, current, total) => {
-    const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
-    const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
-    dispatchImageProgress(id, key, percent, stage);
-  },
-});
+/** Assets en public/assets/background-removal/. Respeta base (ej. /image-utilities/ en GitHub Pages). */
+const getPublicPath = (): string => {
+  const base = typeof import.meta.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}${base}assets/background-removal/`;
+  }
+  return `${base}assets/background-removal/`;
+};
+
+const buildConfig = (id: string, model: FastBackgroundModel): BGConfig => {
+  return {
+    model: model as BGConfig['model'],
+    publicPath: getPublicPath(),
+    fetchArgs: { fetch: cachedFetch },
+    progress: (key: string, current: number, total: number) => {
+      const percent = total > 0 ? ((current / total) * 100).toFixed(0) : '0';
+      const stage = key.startsWith('fetch:') ? 'loading' : 'processing';
+      dispatchImageProgress(id, key, percent, stage);
+    },
+  };
+};
 
 export const runImglyBackgroundRemoval = async (
   pngBytes: Uint8Array,
@@ -24,10 +34,17 @@ export const runImglyBackgroundRemoval = async (
   return await removeBackground(inputBlob, buildConfig(id, model));
 };
 
-const isOrtMismatchError = (err: unknown): boolean => {
-  if (!(err instanceof Error)) return false;
+const isOrtMismatchError = (err: Error | null): boolean => {
+  if (!err) return false;
   const msg = err.message || '';
   return msg.includes('_OrtGetInputOutputMetadata') || msg.includes('Failed to create session');
+};
+
+/** True when the error is due to CORS or network (e.g. CDN blocks localhost). Use to fallback to RMBG. */
+export const isCorsOrFetchError = (err: Error | null): boolean => {
+  if (!err) return false;
+  const msg = (err.message || '').toLowerCase();
+  return msg.includes('failed to fetch') || msg.includes('cors') || msg.includes('access-control') || msg.includes('network');
 };
 
 const IMGly_FALLBACK_CHAIN: Record<FastBackgroundModel, FastBackgroundModel[]> = {
@@ -43,7 +60,7 @@ export const runFastModelBackgroundRemoval = async (
   stageLabel: string
 ): Promise<Blob> => {
   const candidates = [preferredModel, ...IMGly_FALLBACK_CHAIN[preferredModel]];
-  let lastErr: unknown = null;
+  let lastErr: Error | null = null;
 
   for (const candidate of candidates) {
     try {
@@ -52,18 +69,18 @@ export const runFastModelBackgroundRemoval = async (
       }
       return await runImglyBackgroundRemoval(pngBytes, id, candidate);
     } catch (err) {
-      lastErr = err;
-      console.warn(`[Processor] ${stageLabel}: ${candidate} failed.`, err);
+      lastErr = err as Error;
+      console.warn(`[Processor] ${stageLabel}: ${candidate} failed.`, lastErr);
     }
   }
 
   if (isOrtMismatchError(lastErr)) {
     throw new Error(
-      'Los modelos rápidos no pudieron inicializar ONNX Runtime. Ajusta dependencias: onnxruntime-web@1.21.0-dev.20250206-d981b153d3 y reinstala paquetes.'
+      'Fast models could not initialize ONNX Runtime. Check dependencies: onnxruntime-web@1.21.0-dev.20250206-d981b153d3 and reinstall.'
     );
   }
 
-  if (lastErr instanceof Error) throw lastErr;
+  if (lastErr) throw lastErr;
   throw new Error('Fast background-removal models failed for an unknown reason.');
 };
 
@@ -75,9 +92,10 @@ export const preloadModels = async (): Promise<void> => {
     try {
       const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
       await removeBackground(tinyBlob, {
-        model,
+        model: model as BGConfig['model'],
+        publicPath: getPublicPath(),
         fetchArgs: { mode: 'no-cors' },
-      } as any);
+      });
     } catch {
       // Ignore intentional failures from synthetic tiny input.
     }
