@@ -41,10 +41,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
   };
 
   const models = [
-    { id: 'isnet_quint8', name: 'Express', desc: 'Rápido, ideal para objetos simples.' },
-    { id: 'isnet_fp16', name: 'Balanced', desc: 'Preciso y rápido' },
-    { id: 'isnet', name: 'Pro', desc: 'Máxima precisión' },
-    { id: 'rmbg_14', name: 'Ultra', desc: 'Nivel Estudio' },
+    { id: 'isnet_quint8', name: 'Express', desc: 'Fast, ideal for simple objects.' },
+    { id: 'isnet_fp16', name: 'Medium', desc: 'Balanced: precision and speed' },
+    { id: 'isnet', name: 'Pro', desc: 'Maximum precision' },
+    { id: 'rmbg_14', name: 'Ultra', desc: 'Studio grade' },
   ] as const;
 
 
@@ -91,7 +91,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           <div className="flex items-center gap-2 mb-1">
             <h3 className="text-white font-medium truncate">{image.originalName}</h3>
             {image.removeBackground && (
-              <span className="px-1.5 py-0.5 rounded-md bg-brand/20 text-brand text-[8px] font-black uppercase">IA</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-brand/20 text-brand text-[8px] font-black uppercase">AI</span>
             )}
           </div>
           <p className="text-white/40 text-xs mb-3">{formatBytes(image.originalSize)}</p>
@@ -124,7 +124,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               )}
             >
               <Layers size={14} />
-              {image.removeBackground ? "IA Activa" : "Configurar IA"}
+              {image.removeBackground ? "AI on" : "Configure AI"}
               {isSettingsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           </div>
@@ -153,8 +153,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                 <div className="flex flex-col items-end leading-tight text-right max-w-[120px]">
                   <span className={`text-[7px] text-brand/60 font-black uppercase tracking-widest truncate w-full ${image.progress.stage === 'processing' ? 'animate-pulse' : ''}`}>
                     {image.progress.stage === 'loading' 
-                      ? `Cargando: ${image.progress.key.replace('loading:', '')}` 
-                      : 'Analizando...'}
+                      ? `Loading: ${image.progress.key.replace('loading:', '')}` 
+                      : 'Analyzing...'}
                   </span>
                   <span className="text-[10px] text-brand font-mono font-black">
                     {image.progress.percent}%
@@ -195,10 +195,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Ajustes de Remoción de Fondo</span>
+                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Background removal settings</span>
                 <label className="flex items-center gap-2 cursor-pointer group/toggle">
                   <span className="text-[11px] font-bold text-white/60 group-hover:text-white transition-colors">
-                    {image.removeBackground ? 'Habilitado' : 'Deshabilitado'}
+                    {image.removeBackground ? 'On' : 'Off'}
                   </span>
                   <div className="relative flex items-center">
                     <input
@@ -252,7 +252,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                       className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
                     >
                       <Eye size={14} />
-                      {image.previewUrl ? 'Actualizar Previsualización' : 'Previsualizar'}
+                      {image.previewUrl ? 'Update preview' : 'Preview'}
                     </button>
                     {image.previewUrl && (
                       <button

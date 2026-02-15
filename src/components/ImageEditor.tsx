@@ -113,7 +113,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ image, onSave, onCance
         <div className="flex flex-col gap-6">
           <div className="space-y-4">
             <label className="text-sm font-medium text-white/60 flex items-center gap-2">
-              <Scissors size={16} /> Transformación
+              <Scissors size={16} /> Transform
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button 
@@ -123,20 +123,20 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ image, onSave, onCance
                   isCropping ? "bg-brand border-brand text-white shadow-lg shadow-brand/20" : "bg-white/5 border-white/10 text-white/60 hover:bg-white/10"
                 )}
               >
-                <Crop size={18} /> Recortar
+                <Crop size={18} /> Crop
               </button>
               <button 
                 onClick={() => setRotation((r) => (r + 90) % 360)}
                 className="flex items-center justify-center gap-2 p-3 rounded-xl bg-white/5 border border-white/10 text-white/60 hover:bg-white/10 transition-all text-sm font-medium"
               >
-                <Undo className="rotate-90" size={18} /> Rotar
+                <Undo className="rotate-90" size={18} /> Rotate
               </button>
             </div>
           </div>
 
           <div className="space-y-6">
             <label className="text-sm font-medium text-white/60 flex items-center gap-2">
-              <Sun size={16} /> Ajustes
+              <Sun size={16} /> Adjustments
             </label>
             
             <div className="space-y-4">
@@ -184,10 +184,10 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ image, onSave, onCance
             onClick={handleExport}
             className="w-full flex items-center justify-center gap-3 p-4 bg-brand hover:bg-brand-accent text-white rounded-2xl font-bold shadow-xl shadow-brand/30 transition-all hover:-translate-y-1 active:translate-y-0"
           >
-            <Download size={20} /> Guardar Cambios
+            <Download size={20} /> Save changes
           </button>
           <p className="text-[10px] text-center text-white/20 font-medium tracking-wider uppercase">
-            Procesado 100% en local
+            100% processed locally
           </p>
         </div>
       </div>
