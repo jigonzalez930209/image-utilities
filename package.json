@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "download:bg": "node scripts/download-background-removal-assets.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
