@@ -1,6 +1,34 @@
-# React + TypeScript + Vite
+# Image Tools (React + TypeScript + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Conversión de imágenes y eliminación de fondos con IA en el navegador (Magick WASM, @imgly/background-removal, RMBG-1.4).
+
+## Despliegue en GitHub Pages (todo estático)
+
+La app está preparada para publicarse como **página estática en GitHub Pages**, con todos los assets (modelos IA incluidos) servidos desde el mismo origen.
+
+1. **En el repo**: Settings → Pages → Source: **GitHub Actions**.
+2. Cada push a `main` ejecuta el workflow **Deploy to GitHub Pages**:
+   - Instala dependencias
+   - Ejecuta `pnpm run download:bg` (descarga ~280 MB de modelos a `public/`)
+   - Hace `pnpm run build` (el `dist` incluye la app y `assets/background-removal/`)
+   - Despliega el contenido de `dist` a GitHub Pages
+
+La URL quedará en `https://<usuario>.github.io/image-utilities/` (o el nombre de tu repo). Los modelos no se suben al repo (están en `.gitignore`); se descargan en CI en cada build.
+
+## Desarrollo local
+
+Los modelos **Express**, **Medium** y **Pro** se sirven desde `public/assets/background-removal/`. **Una vez** en tu máquina:
+
+```bash
+pnpm run download:bg
+pnpm dev
+```
+
+El modelo **Ultra** (RMBG-1.4) se carga bajo demanda desde Hugging Face.
+
+---
+
+*This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.*
 
 Currently, two official plugins are available:
 
