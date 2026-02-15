@@ -53,8 +53,8 @@ const App: React.FC = () => {
             transition={{ delay: 0.2 }}
             className="text-white/40 text-lg md:text-xl max-w-2xl mx-auto font-medium"
           >
-            Conversión ultra-rápida y edición profesional impulsada por IA, 
-            directamente en tu navegador. Privacidad total garantizada.
+            Ultra-fast conversion and professional editing powered by AI, 
+            right in your browser. Full privacy guaranteed.
           </motion.p>
         </header>
 
@@ -68,7 +68,7 @@ const App: React.FC = () => {
                 activeTab === 'converter' ? "bg-brand text-white shadow-lg shadow-brand/20" : "text-white/40 hover:text-white"
               )}
             >
-              <LayoutList size={18} /> Convertidor
+              <LayoutList size={18} /> Converter
             </button>
             <button
               onClick={() => setActiveTab('editor')}
@@ -77,7 +77,7 @@ const App: React.FC = () => {
                 activeTab === 'editor' ? "bg-brand text-white shadow-lg shadow-brand/20" : "text-white/40 hover:text-white"
               )}
             >
-              <Camera size={18} /> Editor PRO
+              <Camera size={18} /> Pro Editor
             </button>
           </div>
         </div>
@@ -103,10 +103,10 @@ const App: React.FC = () => {
                   >
                     <div className="flex items-center justify-between px-4 mb-2">
                       <h2 className="text-white/60 text-sm font-bold tracking-widest uppercase flex items-center gap-2">
-                        <ListFilter size={16} /> Cola de Procesamiento
+                        <ListFilter size={16} /> Processing queue
                       </h2>
                       <span className="px-2 py-0.5 rounded-lg bg-white/5 text-white/40 text-[10px] font-mono border border-white/5">
-                        {images.length} {images.length === 1 ? 'IMAGEN' : 'IMÁGENES'}
+                        {images.length} {images.length === 1 ? 'IMAGE' : 'IMAGES'}
                       </span>
                     </div>
                     {images.map((image) => (
@@ -128,7 +128,7 @@ const App: React.FC = () => {
                         onClick={() => images.forEach(img => img.status === 'idle' && processImage(img.id))}
                         className="group flex items-center gap-3 px-8 py-4 bg-brand hover:bg-brand-accent text-white rounded-2xl font-black shadow-2xl shadow-brand/25 transition-all hover:-translate-y-1 active:translate-y-0"
                       >
-                        Procesar Todo <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                        Process all <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                       </button>
                     </motion.div>
                   </motion.div>
@@ -146,9 +146,9 @@ const App: React.FC = () => {
                   <Camera size={48} />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-3">Editor de Imágenes Profesional</h3>
+                  <h3 className="text-2xl font-bold text-white mb-3">Professional Image Editor</h3>
                   <p className="text-white/40 font-medium">
-                    Sube una imagen para empezar a recortar, ajustar el color y aplicar filtros avanzados.
+                    Upload an image to start cropping, adjusting color, and applying advanced filters.
                   </p>
                 </div>
                 <label className="block w-full cursor-pointer">
@@ -162,7 +162,7 @@ const App: React.FC = () => {
                     }}
                   />
                   <div className="w-full flex items-center justify-center gap-3 p-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl font-bold transition-all">
-                    Seleccionar Imagen
+                    Select image
                   </div>
                 </label>
               </div>
