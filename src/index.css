@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto:wght@400;700&family=Playfair+Display:wght@400;700&family=Montserrat:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Dancing+Script:wght@400;700&family=Oswald:wght@400;700&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -40,4 +41,13 @@ body {
     linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

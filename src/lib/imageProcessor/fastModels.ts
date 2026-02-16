@@ -85,21 +85,6 @@ export const runFastModelBackgroundRemoval = async (
 };
 
 export const preloadModels = async (): Promise<void> => {
-  const models: FastBackgroundModel[] = ['isnet_quint8', 'isnet_fp16', 'isnet'];
-  console.log('[Processor] Starting background model pre-loading...');
-
-  for (const model of models) {
-    try {
-      const tinyBlob = new Blob([new Uint8Array(1)], { type: 'image/png' });
-      await removeBackground(tinyBlob, {
-        model: model as BGConfig['model'],
-        publicPath: getPublicPath(),
-        fetchArgs: { mode: 'no-cors' },
-      });
-    } catch {
-      // Ignore intentional failures from synthetic tiny input.
-    }
-  }
-
-  console.log('[Processor] Pre-loading requests sent. Ultra model loads on demand.');
+  // Only preload the default model to avoid excessive network requests
+  // Authenticated fetch spamming console - disabling preload for now
 };

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Trash2, RefreshCw, CheckCircle, Download, ChevronDown, Eye, ChevronUp, Layers } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
 import { formatBytes, cn } from '../lib/utils';
-import { FORMAT_CATEGORIES, type ImageFormat } from '../lib/formats';
+import { OUTPUT_CATEGORIES, type OutputFormat } from '../lib/formats';
 import { ImagePreview } from './ImagePreview';
 
 interface ImageCardProps {
@@ -100,10 +100,10 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             <div className="relative group/select">
               <select
                 value={image.format}
-                onChange={(e) => onUpdate(image.id, { format: e.target.value as ImageFormat })}
+                onChange={(e) => onUpdate(image.id, { format: e.target.value as OutputFormat })}
                 className="appearance-none bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold px-3 py-1.5 pr-8 rounded-lg outline-none border border-white/5 transition-colors cursor-pointer"
               >
-                {Object.entries(FORMAT_CATEGORIES).map(([category, formats]) => (
+                {Object.entries(OUTPUT_CATEGORIES).map(([category, formats]) => (
                   <optgroup key={category} label={category} className="bg-[#0f172a]">
                     {formats.map(f => (
                       <option key={f} value={f}>{f}</option>
@@ -195,7 +195,6 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Background removal settings</span>
                 <label className="flex items-center gap-2 cursor-pointer group/toggle">
                   <span className="text-[11px] font-bold text-white/60 group-hover:text-white transition-colors">
                     {image.removeBackground ? 'On' : 'Off'}
@@ -208,6 +207,28 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                       className="peer absolute opacity-0 w-0 h-0"
                     />
                     <div className="w-9 h-5 bg-white/10 rounded-full transition-colors peer-checked:bg-brand" />
+                    <div className="absolute left-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-4 shadow-sm" />
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Privacy Controls</span>
+                  <span className="text-[8px] text-white/20 uppercase tracking-tighter">Strip EXIF/GPS Metadata</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer group/toggle">
+                  <span className="text-[11px] font-bold text-white/60 group-hover:text-white transition-colors">
+                    {image.stripMetadata ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={image.stripMetadata}
+                      onChange={(e) => onUpdate(image.id, { stripMetadata: e.target.checked })}
+                      className="peer absolute opacity-0 w-0 h-0"
+                    />
+                    <div className="w-9 h-5 bg-white/10 rounded-full transition-colors peer-checked:bg-green-500/50" />
                     <div className="absolute left-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-4 shadow-sm" />
                   </div>
                 </label>

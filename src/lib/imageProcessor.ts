@@ -9,6 +9,7 @@
 export { initMagick } from './imageProcessor/magick';
 export { preloadModels } from './imageProcessor/fastModels';
 export { convertImage, previewBackgroundRemoval } from './imageProcessor/convert';
+export { initVips, convertWithVips } from './imageProcessor/vips';
 
 // Re-export shared types
 export type { 

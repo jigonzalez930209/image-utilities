@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { convertImage, type ProcessOptions, type ImageFormat } from '../lib/imageProcessor/index';
+import { convertImage, type ProcessOptions, type OutputFormat } from '../lib/imageProcessor/index';
 
 export interface ProcessedImage {
   id: string;
@@ -11,9 +11,10 @@ export interface ProcessedImage {
   previewUrl?: string;
   status: 'idle' | 'processing' | 'completed' | 'error';
   error?: string;
-  format: ImageFormat;
+  format: OutputFormat;
   removeBackground: boolean;
   bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
+  stripMetadata: boolean;
   progress?: { key: string; percent: string; stage?: 'loading' | 'processing' };
 }
 
@@ -43,6 +44,7 @@ export const useImageProcessor = () => {
       format: 'PNG',
       removeBackground: false,
       bgModel: 'isnet_fp16',
+      stripMetadata: true,
     }));
     setImages((prev) => [...prev, ...newImages]);
   }, []);
@@ -56,7 +58,8 @@ export const useImageProcessor = () => {
         const hasCriticalChanges = 
           (options.format && options.format !== img.format) ||
           (options.bgModel && options.bgModel !== img.bgModel) ||
-          (options.removeBackground !== undefined && options.removeBackground !== img.removeBackground);
+          (options.removeBackground !== undefined && options.removeBackground !== img.removeBackground) ||
+          (options.stripMetadata !== undefined && options.stripMetadata !== img.stripMetadata);
           
         const newStatus = hasCriticalChanges && (img.status === 'completed' || img.status === 'error')
           ? 'idle'
@@ -89,6 +92,7 @@ export const useImageProcessor = () => {
         format: img.format,
         removeBackground: img.removeBackground,
         bgModel: img.bgModel,
+        stripMetadata: img.stripMetadata,
       };
 
       const resultBlob = await convertImage(file, options, id);
@@ -143,10 +147,40 @@ export const useImageProcessor = () => {
       if (img) {
         URL.revokeObjectURL(img.originalUrl);
         if (img.processedUrl) URL.revokeObjectURL(img.processedUrl);
+        if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
       }
       return prev.filter((i) => i.id !== id);
     });
   }, []);
+
+  const clearAll = useCallback((): void => {
+    setImages((prev) => {
+      prev.forEach(img => {
+        URL.revokeObjectURL(img.originalUrl);
+        if (img.processedUrl) URL.revokeObjectURL(img.processedUrl);
+        if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
+      });
+      return [];
+    });
+  }, []);
+
+  const setGlobalOptions = useCallback((options: Partial<ProcessedImage>): void => {
+    setImages((prev) => prev.map(img => ({
+      ...img,
+      ...options,
+      status: (img.status === 'completed' || img.status === 'error') ? 'idle' : img.status,
+      processedUrl: (img.status === 'completed' || img.status === 'error') ? undefined : img.processedUrl,
+      previewUrl: (img.status === 'completed' || img.status === 'error') ? undefined : img.previewUrl,
+    })));
+  }, []);
+
+  const processAll = useCallback(async (): Promise<void> => {
+    const idleImages = images.filter(img => img.status === 'idle');
+    // Process in sequence to avoid overloading (or could use a limit)
+    for (const img of idleImages) {
+      await processImage(img.id);
+    }
+  }, [images, processImage]);
 
   return {
     images,
@@ -155,5 +189,8 @@ export const useImageProcessor = () => {
     processImage,
     previewBackground,
     removeImage,
+    clearAll,
+    setGlobalOptions,
+    processAll,
   };
 };

@@ -2,6 +2,8 @@ import { ImageMagick, MagickFormat } from '@imagemagick/magick-wasm';
 import { normalizeToPNG } from './normalize';
 import { runFastModelBackgroundRemoval, isCorsOrFetchError } from './fastModels';
 import { runRmbgBackgroundRemoval } from './rmbgRemoval';
+import { OUTPUT_FORMATS } from '../formats';
+import { convertWithVips, initVips } from './vips';
 import type { FastBackgroundModel, ProcessOptions } from './types';
 
 export const convertImage = async (
@@ -9,6 +11,7 @@ export const convertImage = async (
   options: ProcessOptions,
   id: string
 ): Promise<Blob> => {
+
   const model = options.bgModel || 'isnet_fp16';
   console.log(`[Processor] Processing ${id} (IA: ${options.removeBackground}, Model: ${model})`);
 
@@ -56,19 +59,57 @@ export const convertImage = async (
     }
   }
 
-  const formatStr = (options.format || 'PNG').toUpperCase();
+  let formatStr = (options.format || 'PNG').toUpperCase();
+
+  // Validate output format - strict check against OUTPUT_FORMATS
+  // @ts-expect-error - string vs literal type mismatch check
+  if (!OUTPUT_FORMATS.includes(formatStr)) {
+    console.warn(`[Processor] Unsupported output format: ${formatStr}. Defaulting to PNG.`);
+    formatStr = 'PNG';
+  }
+
+
+
   const format = (formatStr === 'SVG' ? MagickFormat.Svg : formatStr) as MagickFormat;
 
   return await new Promise((resolve, reject) => {
     try {
       ImageMagick.read(currentBytes, (image) => {
         if (options.quality) image.quality = options.quality * 100;
+        if (options.stripMetadata) {
+          console.log('[Processor] Stripping metadata for privacy');
+          image.strip();
+        }
+
+        // Auto-resize for ICO if too large (ICO max standard is 256x256)
+        if (formatStr === 'ICO' && (image.width > 256 || image.height > 256)) {
+          console.log('[Processor] Resizing large image for ICO compatibility (max 256x256)');
+          image.resize(256, 256);
+        }
+        
+        // Attempt Magick write
         image.write(format, (data) => {
           resolve(new Blob([data.slice()], { type: `image/${formatStr.toLowerCase()}` }));
         });
       });
-    } catch (err) {
-      reject(err);
+    } catch (magickErr) {
+      console.warn(`[Processor] Magick conversion to ${formatStr} failed, trying Vips...`, magickErr);
+      
+      // Fallback to Vips
+      initVips().then(() => {
+        convertWithVips(currentBytes, formatStr, file.name, options)
+          .then(vipsData => {
+            resolve(new Blob([vipsData.slice()], { type: `image/${formatStr.toLowerCase()}` }));
+          })
+          .catch(vipsErr => {
+            console.error(`[Processor] Vips conversion also failed for ${formatStr}:`, vipsErr);
+            // Reject with a clear message explaining both failures
+            reject(new Error(`Conversion to ${formatStr} failed. Magick: ${(magickErr as Error).message}. Vips: ${vipsErr.message || vipsErr}`));
+          });
+      }).catch(err => {
+         console.error('[Processor] Failed to init Vips for fallback:', err);
+         reject(magickErr);
+      });
     }
   });
 };

@@ -1,5 +1,6 @@
 import heic2any from 'heic2any';
 import { ImageMagick, MagickFormat } from '@imagemagick/magick-wasm';
+import { processWithVips, initVips } from './vips';
 
 const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
   return new Promise((resolve, reject) => {
@@ -70,6 +71,11 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
   const name = file.name.toLowerCase();
   const isSVG = name.endsWith('.svg') || file.type === 'image/svg+xml';
   const isHEIC = name.endsWith('.heic') || name.endsWith('.heif');
+  
+  // Try to initialize Vips early in parallel if it might be needed, 
+  // but don't block on it unless necessary.
+  // We'll just init when needed for now to keep startup cost low
+  
   console.log(`[Processor] Normalizing for AI: ${file.name}`);
 
   if (isHEIC) {
@@ -78,18 +84,29 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
       const finalBlob = Array.isArray(blob) ? blob[0] : blob;
       return new Uint8Array(await finalBlob.arrayBuffer());
     } catch {
-      console.warn('[Processor] HEIC failed, trying native...');
+      console.warn('[Processor] HEIC failed, trying Vips/native...');
     }
   }
 
   if (isSVG) return await rasterizeSVG(originalBytes);
 
+  // Try browser native first (fastest)
   try {
     return await browserNormalize(originalBytes);
   } catch (err) {
-    console.warn('[Processor] Native normalization failed, falling back to Magick:', err);
+    console.warn('[Processor] Native normalization failed, falling back to Vips/Magick:', err);
   }
 
+  // Fallback 1: Try Vips (supports many formats like XCF, RAW, etc.)
+  try {
+    console.log('[Processor] Attempting Vips normalization...');
+    await initVips();
+    return await processWithVips(originalBytes, file.name);
+  } catch (vipsErr) {
+    console.warn('[Processor] Vips normalization failed:', vipsErr);
+  }
+
+  // Fallback 2: Try ImageMagick (last resort)
   return await new Promise<Uint8Array>((resolve) => {
     try {
       ImageMagick.read(originalBytes.slice(), (image) => {
@@ -97,6 +114,7 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
       });
     } catch (err) {
       console.error('[Processor] Magick FATAL:', err);
+      // Return original bytes if everything fails, hoping downstream can handle it
       resolve(originalBytes.slice());
     }
   });

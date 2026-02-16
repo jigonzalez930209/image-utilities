@@ -5,10 +5,21 @@ import { useImageProcessor } from './hooks/useImageProcessor';
 import { Dropzone } from './components/Dropzone';
 import { ImageCard } from './components/ImageCard';
 import { ImageEditor } from './components/ImageEditor';
+import { BatchToolbar } from './components/BatchToolbar';
 import { cn } from './lib/utils';
 
 const App: React.FC = () => {
-  const { images, addImages, updateImageOptions, processImage, previewBackground, removeImage } = useImageProcessor();
+  const { 
+    images, 
+    addImages, 
+    updateImageOptions, 
+    processImage, 
+    previewBackground, 
+    removeImage,
+    clearAll,
+    setGlobalOptions,
+    processAll
+  } = useImageProcessor();
   const [activeTab, setActiveTab] = useState<'converter' | 'editor'>('converter');
   const [editingImage, setEditingImage] = useState<string | null>(null);
 
@@ -90,7 +101,7 @@ const App: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="space-y-8"
             >
-              <div className="glass rounded-[2rem] p-4 md:p-8 border border-white/5 shadow-2xl">
+              <div className="glass rounded-4xl p-4 md:p-8 border border-white/5 shadow-2xl">
                 <Dropzone onFilesDropped={addImages} />
               </div>
 
@@ -99,33 +110,42 @@ const App: React.FC = () => {
                   <motion.div 
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="grid gap-4"
+                    className="space-y-6"
                   >
-                    <div className="flex items-center justify-between px-4 mb-2">
-                      <h2 className="text-white/60 text-sm font-bold tracking-widest uppercase flex items-center gap-2">
-                        <ListFilter size={16} /> Processing queue
-                      </h2>
-                      <span className="px-2 py-0.5 rounded-lg bg-white/5 text-white/40 text-[10px] font-mono border border-white/5">
-                        {images.length} {images.length === 1 ? 'IMAGE' : 'IMAGES'}
-                      </span>
+                    <BatchToolbar 
+                      imageCount={images.length}
+                      onUpdateAll={setGlobalOptions}
+                      onProcessAll={processAll}
+                      onClearAll={clearAll}
+                    />
+
+                    <div className="grid gap-4">
+                      <div className="flex items-center justify-between px-4 mb-2">
+                        <h2 className="text-white/60 text-sm font-bold tracking-widest uppercase flex items-center gap-2">
+                          <ListFilter size={16} /> Processing queue
+                        </h2>
+                        <span className="px-2 py-0.5 rounded-lg bg-white/5 text-white/40 text-[10px] font-mono border border-white/5">
+                          {images.length} {images.length === 1 ? 'IMAGE' : 'IMAGES'}
+                        </span>
+                      </div>
+                      {images.map((image) => (
+                        <ImageCard
+                          key={image.id}
+                          image={image}
+                          onUpdate={updateImageOptions}
+                          onProcess={processImage}
+                          onPreview={previewBackground}
+                          onRemove={removeImage}
+                        />
+                      ))}
                     </div>
-                    {images.map((image) => (
-                      <ImageCard
-                        key={image.id}
-                        image={image}
-                        onUpdate={updateImageOptions}
-                        onProcess={processImage}
-                        onPreview={previewBackground}
-                        onRemove={removeImage}
-                      />
-                    ))}
                     
                     <motion.div 
                       layout
                       className="flex justify-end pt-6"
                     >
                       <button
-                        onClick={() => images.forEach(img => img.status === 'idle' && processImage(img.id))}
+                        onClick={processAll}
                         className="group flex items-center gap-3 px-8 py-4 bg-brand hover:bg-brand-accent text-white rounded-2xl font-black shadow-2xl shadow-brand/25 transition-all hover:-translate-y-1 active:translate-y-0"
                       >
                         Process all <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
@@ -139,7 +159,7 @@ const App: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="glass rounded-[2rem] p-12 md:p-24 border border-white/5 shadow-2xl text-center"
+              className="glass rounded-4xl p-12 md:p-24 border border-white/5 shadow-2xl text-center"
             >
               <div className="max-w-md mx-auto space-y-8">
                 <div className="w-24 h-24 bg-brand/10 rounded-3xl flex items-center justify-center mx-auto text-brand">
