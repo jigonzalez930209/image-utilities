@@ -39,3 +39,8 @@ export interface Layer {
   // Filter specific (applied per layer)
   filters?: FilterState;
 }
+// Editor Panel
+export type EditorPanel = 'crop' | 'adjust' | 'straighten' | 'layers';
+
+// Export Formats
+export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'tiff' | 'bmp';
