@@ -7,6 +7,8 @@ export interface HistoryState {
   layers: Layer[];
   filters?: FilterState;
   cropRect?: { x: number; y: number; width: number; height: number };
+  zoom: number;
+  pan: { x: number; y: number };
 }
 
 const MAX_HISTORY = 20;
