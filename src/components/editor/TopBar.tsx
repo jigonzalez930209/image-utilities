@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Undo, Redo, RotateCcw, Download } from 'lucide-react';
+import { ArrowLeft, Undo, Redo, RotateCcw, Download, Copy } from 'lucide-react';
 
 // Sidebar.tsx imports { cn } from '../../utils';
 // ImageEditor is in src/components.
@@ -21,6 +21,7 @@ interface TopBarProps {
   onUndo: () => void;
   onRedo: () => void;
   onReset: () => void;
+  onCopy: () => void;
   canUndo: boolean;
   canRedo: boolean;
   isMobile?: boolean;
@@ -32,6 +33,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onUndo,
   onRedo,
   onReset,
+  onCopy,
   canUndo,
   canRedo,
 }) => {
@@ -76,6 +78,15 @@ export const TopBar: React.FC<TopBarProps> = ({
         >
           <RotateCcw size={18} />
           <span className="hidden md:inline text-sm font-medium">Reset</span>
+        </button>
+
+        <button
+          onClick={onCopy}
+          className="p-2 flex items-center gap-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-all"
+          title="Copy to Clipboard"
+        >
+          <Copy size={18} />
+          <span className="hidden md:inline text-sm font-medium">Copy</span>
         </button>
 
         <div className="h-6 w-px bg-white/10 mx-2" />
