@@ -5,9 +5,10 @@ import { cn } from '../lib/utils';
 
 interface DropzoneProps {
   onFilesDropped: (files: File[]) => void;
+  showMinimal?: boolean;
 }
 
-export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
+export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped, showMinimal = false }) => {
   const [isDragActive, setIsDragActive] = useState(false);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -44,14 +45,17 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300",
-          "bg-white/5 backdrop-blur-sm border-white/20 hover:border-brand/50 hover:bg-white/10",
+          "relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300",
+          showMinimal ? "h-full min-h-[400px] border-white/5 bg-white/[0.02]" : "h-64 bg-white/5 backdrop-blur-sm border-white/20 hover:border-brand/50 hover:bg-white/10",
           isDragActive && "border-brand bg-brand/10 scale-[1.02]"
         )}
-        whileHover={{ scale: 1.01 }}
+        whileHover={showMinimal ? {} : { scale: 1.01 }}
         whileTap={{ scale: 0.99 }}
       >
-        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+        <div className={cn(
+          "flex flex-col items-center justify-center pt-5 pb-6",
+          showMinimal && "opacity-20"
+        )}>
           <motion.div
             initial={{ y: 0 }}
             animate={{ y: isDragActive ? -10 : 0 }}
@@ -62,9 +66,11 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
           <p className="mb-2 text-xl font-semibold text-white">
             {isDragActive ? "Drop here" : "Drag your images here"}
           </p>
-          <p className="text-sm text-white/40">
-            PNG, JPG, WebP or HEIC (Max. 10MB)
-          </p>
+          {!showMinimal && (
+            <p className="text-sm text-white/40">
+              PNG, JPG, WebP or HEIC (Max. 10MB)
+            </p>
+          )}
         </div>
         <input id="file-upload" type="file" className="hidden" multiple accept="image/*" onChange={handleChange} />
       </motion.label>

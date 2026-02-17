@@ -43,8 +43,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
   const models = [
     { id: 'isnet_quint8', name: 'Express', desc: 'Fast, ideal for simple objects.' },
     { id: 'isnet_fp16', name: 'Medium', desc: 'Balanced: precision and speed' },
-    { id: 'isnet', name: 'Pro', desc: 'Maximum precision' },
-    { id: 'rmbg_14', name: 'Ultra', desc: 'Studio grade' },
+    { id: 'rmbg_14', name: 'Pro', desc: 'Maximum precision' },
   ] as const;
 
 

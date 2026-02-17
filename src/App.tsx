@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Zap, ListFilter, ArrowRight, LayoutList, Camera } from 'lucide-react';
 import { useImageProcessor } from './hooks/useImageProcessor';
 import { Dropzone } from './components/Dropzone';
@@ -21,7 +21,7 @@ const App: React.FC = () => {
     processAll
   } = useImageProcessor();
   const [activeTab, setActiveTab] = useState<'converter' | 'editor'>('converter');
-  const [editingImage, setEditingImage] = useState<string | null>(null);
+  const [editingImage, setEditingImage] = useState<string | null>('/img.png');
 
   const handleEditorSave = (blob: Blob) => {
     const url = URL.createObjectURL(blob);
@@ -101,17 +101,19 @@ const App: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               className="space-y-8"
             >
-              <div className="glass rounded-4xl p-4 md:p-8 border border-white/5 shadow-2xl">
-                <Dropzone onFilesDropped={addImages} />
-              </div>
+              {images.length === 0 ? (
+                <div className="glass rounded-4xl p-4 md:p-8 border border-white/5 shadow-2xl">
+                  <Dropzone onFilesDropped={addImages} />
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Background Dropzone Overlay */}
+                  <div className="absolute inset-0 pointer-events-auto z-0">
+                    <Dropzone onFilesDropped={addImages} showMinimal />
+                  </div>
 
-              <AnimatePresence mode="popLayout">
-                {images.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="space-y-6"
-                  >
+                  {/* Batch Content */}
+                  <div className="relative z-10 space-y-6">
                     <BatchToolbar 
                       imageCount={images.length}
                       onUpdateAll={setGlobalOptions}
@@ -151,9 +153,9 @@ const App: React.FC = () => {
                         Process all <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                       </button>
                     </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.div
