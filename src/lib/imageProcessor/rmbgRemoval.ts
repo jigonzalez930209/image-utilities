@@ -48,18 +48,11 @@ const applyMaskToSource = async (sourcePngBytes: Uint8Array, maskBlob: Blob): Pr
 
   const sourceData = sourceCtx.getImageData(0, 0, width, height);
   const maskData = maskCtx.getImageData(0, 0, width, height);
-  let brightPixels = 0;
-
-  for (let i = 0; i < maskData.data.length; i += 4) {
-    const luma = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
-    if (luma > 127) brightPixels += 1;
-  }
-
-  const shouldInvertMask = brightPixels / Math.max(width * height, 1) > 0.65;
 
   for (let i = 0; i < sourceData.data.length; i += 4) {
+    // Subject mask: white (255) is subject.
     const luma = (maskData.data[i] + maskData.data[i + 1] + maskData.data[i + 2]) / 3;
-    const normalizedAlpha = (shouldInvertMask ? 255 - luma : luma) / 255;
+    const normalizedAlpha = luma / 255;
     sourceData.data[i + 3] = Math.round(sourceData.data[i + 3] * normalizedAlpha);
   }
 
@@ -68,7 +61,7 @@ const applyMaskToSource = async (sourcePngBytes: Uint8Array, maskBlob: Blob): Pr
   return await new Promise<Blob>((resolve, reject) => {
     sourceCanvas.toBlob((blob) => {
       if (!blob) {
-        reject(new Error('Failed to encode composed RMBG output as PNG'));
+        reject(new Error('Failed to encode composed output as PNG'));
         return;
       }
       resolve(blob);
@@ -76,37 +69,38 @@ const applyMaskToSource = async (sourcePngBytes: Uint8Array, maskBlob: Blob): Pr
   });
 };
 
-const extractRmbgBlob = async (output: any, sourcePngBytes: Uint8Array): Promise<Blob> => {
-  const first = Array.isArray(output) ? output[0] : output;
 
-  if (first?.mask && typeof first.mask.toBlob === 'function') {
-    const maskBlob = await first.mask.toBlob();
-    return await applyMaskToSource(sourcePngBytes, maskBlob);
-  }
-
-  if (!first || typeof first.toBlob !== 'function') {
-    const shape = Array.isArray(output) ? `array(len=${output.length})` : typeof output;
-    throw new Error(`RMBG output does not expose toBlob() (shape=${shape})`);
-  }
-
-  return await first.toBlob();
-};
 
 export const runRmbgBackgroundRemoval = async (
   pngBytes: Uint8Array,
   id: string,
-  stageLabel: string
+  stageLabel: string,
+  modelId?: string
 ): Promise<Blob> => {
-  const pipe = await getRMBGPipeline(id);
+  const pipe = await getRMBGPipeline(id, modelId);
   dispatchProcessStart(id);
   console.log(`[Processor] Starting ${stageLabel} inference for ${id}...`);
 
-  const inputUrl = URL.createObjectURL(new Blob([pngBytes.slice()]));
   try {
-    const output = await withTimeout<any>(pipe(inputUrl), RMBG_INFERENCE_TIMEOUT_MS, `RMBG ${stageLabel} inference`);
-    console.log(`[Processor] ${stageLabel} inference completed for ${id}`);
-    return await extractRmbgBlob(output, pngBytes);
-  } finally {
-    URL.revokeObjectURL(inputUrl);
+    const inputBlob = new Blob([pngBytes.slice()]);
+    console.log(`[Processor] ${stageLabel} input Blob size:`, inputBlob.size);
+    
+    // The pipeline proxy now accepts a Blob and answers with a mask Blob
+    const maskBlob = await withTimeout<Blob>(
+        pipe(inputBlob), 
+        RMBG_INFERENCE_TIMEOUT_MS, 
+        `RMBG ${stageLabel} inference`
+    );
+    console.log(`[Processor] ${stageLabel} mask blob received:`, maskBlob.size);
+    
+    return await applyMaskToSource(pngBytes, maskBlob);
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.error(`[Processor] ${stageLabel} inference failed:`, {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    throw err;
   }
 };
