@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
-import { convertImage, type ProcessOptions, type OutputFormat } from '../lib/imageProcessor/index';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { convertImage, type BackgroundModel, type ProcessOptions, type OutputFormat } from '../lib/imageProcessor/index';
 
 export interface ProcessedImage {
   id: string;
@@ -13,13 +13,15 @@ export interface ProcessedImage {
   error?: string;
   format: OutputFormat;
   removeBackground: boolean;
-  bgModel: 'isnet' | 'isnet_fp16' | 'isnet_quint8' | 'rmbg_14';
+  bgModel: BackgroundModel;
   stripMetadata: boolean;
   progress?: { key: string; percent: string; stage?: 'loading' | 'processing' };
 }
 
 export const useImageProcessor = () => {
   const [images, setImages] = useState<ProcessedImage[]>([]);
+  // Cache structure: Map<imageId, Map<modelId, Blob>>
+  const previewCacheRef = useRef<Map<string, Map<string, Blob>>>(new Map());
 
   // Add event listener for progress
   useEffect(() => {
@@ -43,7 +45,7 @@ export const useImageProcessor = () => {
       status: 'idle',
       format: 'PNG',
       removeBackground: false,
-      bgModel: 'isnet_fp16',
+      bgModel: 'isnet_fp16', // Medium quality by default
       stripMetadata: true,
     }));
     setImages((prev) => [...prev, ...newImages]);
@@ -118,12 +120,34 @@ export const useImageProcessor = () => {
     updateImageOptions(id, { status: 'processing', error: undefined });
 
     try {
+      // Check cache first
+      const imageCache = previewCacheRef.current.get(id);
+      const cachedBlob = imageCache?.get(img.bgModel);
+      
+      if (cachedBlob) {
+        console.log(`[Preview] Using cached result for ${id} with model ${img.bgModel}`);
+        const previewUrl = URL.createObjectURL(cachedBlob);
+        if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);
+        
+        updateImageOptions(id, {
+          status: 'idle',
+          previewUrl,
+        });
+        return;
+      }
+
       const response = await fetch(img.originalUrl);
       const blob = await response.blob();
       const file = new File([blob], img.originalName, { type: blob.type });
 
       const { previewBackgroundRemoval } = await import('../lib/imageProcessor/index');
       const resultBlob = await previewBackgroundRemoval(file, id, img.bgModel);
+      
+      // Store in cache
+      if (!previewCacheRef.current.has(id)) {
+        previewCacheRef.current.set(id, new Map());
+      }
+      previewCacheRef.current.get(id)!.set(img.bgModel, resultBlob);
       
       const previewUrl = URL.createObjectURL(resultBlob);
       if (img.previewUrl) URL.revokeObjectURL(img.previewUrl);

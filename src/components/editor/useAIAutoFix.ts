@@ -1,7 +1,19 @@
 import { useState, useCallback } from 'react';
-import { pipeline, type ImageClassificationPipeline } from '@huggingface/transformers';
+import { pipeline, env, type ImageClassificationPipeline } from '@huggingface/transformers';
 import type { FilterState } from './types';
 import { DEFAULT_FILTERS } from './useFilters';
+
+// Configure environment for purely local execution
+env.allowRemoteModels = false;
+env.allowLocalModels = true;
+env.localModelPath = '/assets/models/';
+env.useBrowserCache = false; // Disable to avoid caching 404/401 HTML responses
+
+// Configure local WASM paths
+if (env.backends.onnx.wasm) {
+  env.backends.onnx.wasm.wasmPaths = '/assets/models/wasm/';
+  env.backends.onnx.wasm.numThreads = 1; // Reduce memory overhead for CPU mode
+}
 
 let classifier: ImageClassificationPipeline | null = null;
 
@@ -12,10 +24,19 @@ export const useAIAutoFix = () => {
     setIsAnalyzing(true);
     try {
       if (!classifier) {
-        // Using a very small and fast model for basic classification
-        classifier = (await pipeline('image-classification', 'Xenova/mobilenet_v1_1.0_224_quantized', {
-          device: 'webgpu', // Try webgpu if available
-        })) as unknown as ImageClassificationPipeline;
+        try {
+          // Force WASM for local execution to avoid WebGPU adapter errors
+          classifier = (await pipeline('image-classification', 'Xenova/mobilenet_v1_1.0_224_quantized', {
+            device: 'wasm', 
+            dtype: 'q8',
+          })) as unknown as ImageClassificationPipeline;
+        } catch (err: unknown) {
+          const error = err as {message?: string};
+          if (error?.message?.includes('Unexpected token')) {
+            throw new Error('Modelo no encontrado o corrupto. Por favor, intenta un "Hard Reload" (Ctrl+F5) para limpiar el caché de errores. Archivos esperados en: /assets/models/Xenova/mobilenet_v1_1.0_224_quantized/');
+          }
+          throw err;
+        }
       }
 
       // Detect lighting/quality issues via heuristics first, then maybe model for specific "vibe"
