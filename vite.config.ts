@@ -11,6 +11,19 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    {
+      name: 'wasm-static-fix',
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url && req.url.includes('/assets/models/wasm/') && req.url.includes('import')) {
+            const cleanUrl = req.url.split('?')[0];
+            console.log('[WasmFix] Redirecting:', req.url, '->', cleanUrl);
+            req.url = cleanUrl;
+          }
+          next();
+        });
+      }
+    }
   ],
   server: {
     headers: {
@@ -22,6 +35,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['@imgly/background-removal'],
+    exclude: ['@imgly/background-removal', '@huggingface/transformers'],
   },
 })
