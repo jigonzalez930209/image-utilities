@@ -48,9 +48,8 @@ export const isCorsOrFetchError = (err: Error | null): boolean => {
 };
 
 const IMGly_FALLBACK_CHAIN: Record<FastBackgroundModel, FastBackgroundModel[]> = {
-  isnet_quint8: ['isnet_fp16', 'isnet'],
-  isnet_fp16: ['isnet'],
-  isnet: [],
+  isnet_quint8: ['isnet_fp16'],
+  isnet_fp16: [],
 };
 
 export const runFastModelBackgroundRemoval = async (

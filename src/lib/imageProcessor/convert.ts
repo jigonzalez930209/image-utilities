@@ -23,11 +23,11 @@ export const convertImage = async (
 
       if (model === 'rmbg_14') {
         try {
-          const resultBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG');
+          const resultBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG', model);
           currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
         } catch (rmbgErr) {
           console.warn('[Processor] RMBG unavailable, falling back to Medium model (isnet_fp16).', rmbgErr);
-          const fallback = await runFastModelBackgroundRemoval(currentBytes, id, 'isnet_fp16', 'Ultra fallback');
+          const fallback = await runFastModelBackgroundRemoval(currentBytes, id, 'isnet_fp16', 'Pro fallback');
           currentBytes = new Uint8Array(await fallback.arrayBuffer());
         }
       } else {
@@ -42,8 +42,8 @@ export const convertImage = async (
         } catch (fastErr) {
           const err = fastErr instanceof Error ? fastErr : new Error(String(fastErr));
           if (isCorsOrFetchError(err)) {
-            console.warn('[Processor] Fast models blocked (CORS/network), using Ultra (RMBG).', err.message);
-            const rmbgBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG (CORS fallback)');
+            console.warn('[Processor] Fast models blocked (CORS/network), using Pro (RMBG).', err.message);
+            const rmbgBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG (CORS fallback)', model);
             currentBytes = new Uint8Array(await rmbgBlob.arrayBuffer());
           } else {
             throw err;
@@ -117,7 +117,7 @@ export const convertImage = async (
 export const previewBackgroundRemoval = async (
   file: File,
   id: string,
-  model: string = 'isnet_fp16'
+  model: string = 'rmbg_14'
 ): Promise<Blob> => {
   console.log(`[Processor] Previewing: ${id} (Model: ${model})`);
   const pngBytes = await normalizeToPNG(file, true);
@@ -125,7 +125,7 @@ export const previewBackgroundRemoval = async (
   const startTime = performance.now();
   let result: Blob;
   if (model === 'rmbg_14') {
-    result = await runRmbgBackgroundRemoval(pngBytes, id, 'preview RMBG').catch(async (rmbgErr) => {
+    result = await runRmbgBackgroundRemoval(pngBytes, id, 'preview RMBG', model).catch(async (rmbgErr) => {
       console.warn('[Processor] RMBG preview unavailable, falling back to Medium model (isnet_fp16).', rmbgErr);
       return await runFastModelBackgroundRemoval(pngBytes, id, 'isnet_fp16', 'Ultra preview fallback');
     });
@@ -136,7 +136,7 @@ export const previewBackgroundRemoval = async (
       const err = fastErr instanceof Error ? fastErr : new Error(String(fastErr));
       if (isCorsOrFetchError(err)) {
         console.warn('[Processor] Fast preview blocked (CORS/network), using Ultra (RMBG).', err.message);
-        result = await runRmbgBackgroundRemoval(pngBytes, id, 'preview RMBG (CORS fallback)');
+        result = await runRmbgBackgroundRemoval(pngBytes, id, 'preview RMBG (CORS fallback)', model);
       } else {
         throw err;
       }
