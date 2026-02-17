@@ -1,8 +1,8 @@
 import Vips from 'wasm-vips';
 import type { ProcessOptions } from './types';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let vips: any = null;
+type VipsInstance = Awaited<ReturnType<typeof Vips>>;
+let vips: VipsInstance | null = null;
 
 export const initVips = async (): Promise<void> => {
   if (vips) return;
@@ -56,6 +56,7 @@ export const convertWithVips = async (
   options?: ProcessOptions
 ): Promise<Uint8Array> => {
   if (!vips) await initVips();
+  if (!vips) throw new Error('Failed to initialize Vips');
 
   try {
     // Load the image from buffer. 
@@ -66,8 +67,7 @@ export const convertWithVips = async (
     
     // Vips uses the suffix to determine the saver
     // See: https://www.libvips.org/API/current/VipsImage.html#vips-image-write-to-buffer
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const saverOptions: Record<string, any> = {};
+    const saverOptions: Record<string, unknown> = {};
     if (options?.stripMetadata) {
       saverOptions.strip = true;
     }
