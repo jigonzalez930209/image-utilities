@@ -53,6 +53,10 @@ if (typeof window === 'undefined') {
 } else {
   // ===== BROWSER CONTEXT (registration script) =====
   (() => {
+    // Skip on localhost — dev server already sets COOP/COEP headers
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') return;
+
     const reloadedBySelf = window.sessionStorage.getItem('coiReloadedBySelf');
     window.sessionStorage.removeItem('coiReloadedBySelf');
     const coepDegrading = (reloadedBySelf === 'coepdegrade');

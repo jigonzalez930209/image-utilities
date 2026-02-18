@@ -5,16 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="alternate icon" type="image/x-icon" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet" crossorigin>
     <title>Image Studio - AI Image Utilities</title>
-    <script>
-      // Skip Service Worker on localhost — dev server already sets COOP/COEP headers
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        document.write('<script src="./coop-coep.js"><\/script>');
-      }
-    </script>
+    <!-- COI Service Worker: enables SharedArrayBuffer via COOP/COEP headers -->
+    <!-- On localhost, SW registers but does nothing (crossOriginIsolated already true via dev headers) -->
+    <script src="coop-coep.js"></script>
   </head>
   <body>
     <div id="root"></div>
