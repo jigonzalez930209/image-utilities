@@ -5,10 +5,9 @@ import { cn } from '../lib/utils';
 
 interface DropzoneProps {
   onFilesDropped: (files: File[]) => void;
-  showMinimal?: boolean;
 }
 
-export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped, showMinimal = false }) => {
+export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
   const [isDragActive, setIsDragActive] = useState(false);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -33,11 +32,13 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped, showMinimal 
     if (e.target.files) {
       const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
       if (files.length > 0) onFilesDropped(files);
+      // Reset the input value so the same file can be selected again
+      e.target.value = '';
     }
   }, [onFilesDropped]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full">
       <motion.label
         htmlFor="file-upload"
         onDragEnter={handleDrag}
@@ -45,32 +46,28 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped, showMinimal 
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         className={cn(
-          "relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-300",
-          showMinimal ? "h-full min-h-[400px] border-white/5 bg-white/[0.02]" : "h-64 bg-white/5 backdrop-blur-sm border-white/20 hover:border-brand/50 hover:bg-white/10",
-          isDragActive && "border-brand bg-brand/10 scale-[1.02]"
+          "relative flex items-center justify-center w-full h-72 rounded-[40px] cursor-pointer transition-all duration-300",
+          "bg-white/2 border border-white/5 hover:bg-white/4",
+          isDragActive && "bg-brand/5 border-brand/20"
         )}
-        whileHover={showMinimal ? {} : { scale: 1.01 }}
-        whileTap={{ scale: 0.99 }}
       >
         <div className={cn(
-          "flex flex-col items-center justify-center pt-5 pb-6",
-          showMinimal && "opacity-20"
+          "w-full max-w-lg mx-auto h-48 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center transition-all duration-300",
+          isDragActive ? "border-brand bg-brand/5 scale-105" : "border-white/10"
         )}>
           <motion.div
             initial={{ y: 0 }}
             animate={{ y: isDragActive ? -10 : 0 }}
-            className="mb-4 text-white/60"
+            className="mb-4 text-white/40"
           >
             {isDragActive ? <ImageIcon size={48} className="text-brand" /> : <Upload size={48} />}
           </motion.div>
-          <p className="mb-2 text-xl font-semibold text-white">
+          <p className="text-2xl font-black text-white mb-2 tracking-tight">
             {isDragActive ? "Drop here" : "Drag your images here"}
           </p>
-          {!showMinimal && (
-            <p className="text-sm text-white/40">
-              PNG, JPG, WebP or HEIC (Max. 10MB)
-            </p>
-          )}
+          <p className="text-sm text-white/30 font-bold tracking-widest uppercase">
+            PNG, JPG, WebP or HEIC
+          </p>
         </div>
         <input id="file-upload" type="file" className="hidden" multiple accept="image/*" onChange={handleChange} />
       </motion.label>

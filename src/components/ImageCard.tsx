@@ -18,6 +18,24 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
   const [isPendingPreview, setIsPendingPreview] = React.useState(false);
+  const [isEditingName, setIsEditingName] = React.useState(false);
+  const [tempName, setTempName] = React.useState('');
+
+  const displayName = image.customName || image.originalName.split('.').slice(0, -1).join('.');
+
+  const handleStartEdit = () => {
+    if (image.status === 'processing' || isPendingPreview) return;
+    setTempName(displayName);
+    setIsEditingName(true);
+  };
+
+  const handleSaveName = () => {
+    const trimmed = tempName.trim();
+    if (trimmed && trimmed !== displayName) {
+      onUpdate(image.id, { customName: trimmed });
+    }
+    setIsEditingName(false);
+  };
 
   // Auto-open preview when URL is ready if requested
   React.useEffect(() => {
@@ -61,7 +79,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           onClick={handlePreviewTrigger}
           disabled={image.status === 'processing' || isPendingPreview || !image.removeBackground}
           className={cn(
-            "relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 group/thumb transition-all active:scale-95 disabled:active:scale-100",
+            "relative w-24 h-24 rounded-lg overflow-hidden bg-white/10 shrink-0 group/thumb transition-all active:scale-95 disabled:active:scale-100",
             !image.removeBackground && "cursor-default active:scale-100"
           )}
         >
@@ -86,11 +104,29 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           )}
         </button>
 
-        <div className="flex-grow min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-white font-medium truncate">{image.originalName}</h3>
+        <div className="grow min-w-0">
+          <div className="flex items-center gap-2 mb-1 group/title">
+            {isEditingName ? (
+              <input
+                autoFocus
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                onBlur={handleSaveName}
+                onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                className="bg-white/10 text-white font-medium px-2 py-0.5 rounded outline-none border border-brand/50 w-full"
+              />
+            ) : (
+              <h3 
+                onDoubleClick={handleStartEdit}
+                className="text-white font-medium truncate cursor-text hover:text-brand transition-colors grow"
+                title="Double click to rename"
+              >
+                {displayName}<span className="text-white/20">.{image.format.toLowerCase()}</span>
+              </h3>
+            )}
             {image.removeBackground && (
-              <span className="px-1.5 py-0.5 rounded-md bg-brand/20 text-brand text-[8px] font-black uppercase">AI</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-brand/20 text-brand text-[8px] font-black uppercase shrink-0">AI</span>
             )}
           </div>
           <p className="text-white/40 text-xs mb-3">{formatBytes(image.originalSize)}</p>
@@ -100,7 +136,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               <select
                 value={image.format}
                 onChange={(e) => onUpdate(image.id, { format: e.target.value as OutputFormat })}
-                className="appearance-none bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold px-3 py-1.5 pr-8 rounded-lg outline-none border border-white/5 transition-colors cursor-pointer"
+                disabled={image.status === 'processing' || isPendingPreview}
+                className="appearance-none bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold px-3 py-1.5 pr-8 rounded-lg outline-none border border-white/5 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {Object.entries(OUTPUT_CATEGORIES).map(([category, formats]) => (
                   <optgroup key={category} label={category} className="bg-[#0f172a]">
@@ -113,10 +150,32 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
             </div>
 
+            {image.format === 'ICO' && (
+              <div className="relative group/select">
+                <select
+                  value={image.resizeDimension || ''}
+                  onChange={(e) => onUpdate(image.id, { resizeDimension: e.target.value ? Number(e.target.value) : undefined })}
+                  disabled={image.status === 'processing' || isPendingPreview}
+                  className="appearance-none bg-brand/5 hover:bg-brand/10 text-brand text-[11px] font-bold px-3 py-1.5 pr-8 rounded-lg outline-none border border-brand/20 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <option value="" className="bg-[#0f172a] text-white">Original / Free</option>
+                  <option value="1024" className="bg-[#0f172a] text-white">1024x1024</option>
+                  <option value="512" className="bg-[#0f172a] text-white">512x512</option>
+                  <option value="256" className="bg-[#0f172a] text-white">256x256</option>
+                  <option value="128" className="bg-[#0f172a] text-white">128x128</option>
+                  <option value="64" className="bg-[#0f172a] text-white">64x64</option>
+                  <option value="32" className="bg-[#0f172a] text-white">32x32</option>
+                  <option value="16" className="bg-[#0f172a] text-white">16x16</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand/40 pointer-events-none" />
+              </div>
+            )}
+
             <button
               onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              disabled={image.status === 'processing' || isPendingPreview}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all",
+                "flex items-center gap-2 px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed",
                 image.removeBackground 
                   ? "bg-brand/10 border-brand text-brand" 
                   : "bg-white/5 border-white/5 text-white/40 hover:text-white"
@@ -166,7 +225,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             <div className="flex gap-2">
               <a
                 href={image.processedUrl}
-                download={`processed_${image.originalName.split('.')[0]}.${image.format}`}
+                download={`${image.customName || image.originalName.split('.').slice(0, -1).join('.')}.${image.format.toLowerCase()}`}
                 className="p-2.5 rounded-xl bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors shadow-lg shadow-green-500/10"
               >
                 <Download size={20} />
@@ -176,7 +235,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
           )}
           <button
             onClick={() => onRemove(image.id)}
-            className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+            disabled={image.status === 'processing' || isPendingPreview}
+            className="p-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
           >
             <Trash2 size={20} />
           </button>
@@ -190,7 +250,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-            className="border-t border-white/5 bg-white/[0.02] overflow-hidden"
+            className="border-t border-white/5 bg-white/2 overflow-hidden"
           >
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -269,7 +329,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                     <button
                       onClick={handlePreviewTrigger}
                       disabled={image.status === 'processing' || isPendingPreview}
-                      className="flex-grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
+                      className="grow flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold transition-all border border-white/5 active:scale-95 disabled:opacity-50"
                     >
                       <Eye size={14} />
                       {image.previewUrl ? 'Update preview' : 'Preview'}

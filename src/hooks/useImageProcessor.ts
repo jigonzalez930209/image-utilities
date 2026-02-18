@@ -15,6 +15,8 @@ export interface ProcessedImage {
   removeBackground: boolean;
   bgModel: BackgroundModel;
   stripMetadata: boolean;
+  customName?: string;
+  resizeDimension?: number;
   progress?: { key: string; percent: string; stage?: 'loading' | 'processing' };
 }
 
@@ -95,9 +97,27 @@ export const useImageProcessor = () => {
         removeBackground: img.removeBackground,
         bgModel: img.bgModel,
         stripMetadata: img.stripMetadata,
+        resizeDimension: img.resizeDimension,
+        onAIResult: (resultBlob) => {
+          // Save the AI inference to cache for future reuse (preview or re-process)
+          if (!previewCacheRef.current.has(id)) {
+            previewCacheRef.current.set(id, new Map());
+          }
+          previewCacheRef.current.get(id)!.set(img.bgModel, resultBlob);
+          console.log(`[Processor] Saved AI result to cache for ${id} (${img.bgModel})`);
+        }
       };
 
-      const resultBlob = await convertImage(file, options, id);
+      // Reuse preview result if available to avoid redundant AI inference
+      let resultBlob: Blob;
+      const cachedBlob = previewCacheRef.current.get(id)?.get(img.bgModel);
+      
+      if (img.removeBackground && cachedBlob) {
+        console.log(`[Processor] Reusing cached preview result for ${id}`);
+        resultBlob = await convertImage(file, { ...options, skipAI: true, aiResult: cachedBlob }, id);
+      } else {
+        resultBlob = await convertImage(file, options, id);
+      }
       const processedUrl = URL.createObjectURL(resultBlob);
 
       updateImageOptions(id, {
