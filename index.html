@@ -12,34 +12,50 @@
     <script>
       // Service Worker for COOP/COEP headers (enables SharedArrayBuffer on GitHub Pages)
       if ('serviceWorker' in navigator && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        const reloadedKey = 'coopCoepReloaded';
-        
-        window.addEventListener('load', () => {
+        const RELOAD_KEY = 'coopCoepReloadCount';
+        const reloadCount = parseInt(sessionStorage.getItem(RELOAD_KEY) || '0', 10);
+
+        window.addEventListener('load', async () => {
           console.log('[COOP/COEP] crossOriginIsolated:', self.crossOriginIsolated);
-          
-          if (window.sessionStorage.getItem(reloadedKey)) {
-            window.sessionStorage.removeItem(reloadedKey);
-            console.log('[COOP/COEP] Service Worker should be active');
-            
-            if (!self.crossOriginIsolated) {
-              console.error('[COOP/COEP] crossOriginIsolated is still false! Headers may not be working.');
-            }
+          console.log('[COOP/COEP] reload count:', reloadCount);
+
+          // Already isolated — we're good
+          if (self.crossOriginIsolated) {
+            sessionStorage.removeItem(RELOAD_KEY);
+            console.log('[COOP/COEP] crossOriginIsolated=true, SharedArrayBuffer available');
             return;
           }
 
-          navigator.serviceWorker.register('./coop-coep.js', { scope: './' })
-            .then(registration => {
-              console.log('[COOP/COEP] Service Worker registered:', registration.scope);
-              
-              if (!navigator.serviceWorker.controller) {
-                console.log('[COOP/COEP] Reloading to activate Service Worker...');
-                window.sessionStorage.setItem(reloadedKey, 'true');
-                setTimeout(() => window.location.reload(), 100);
-              } else {
-                console.log('[COOP/COEP] Service Worker already controlling');
-              }
-            })
-            .catch(err => console.error('[COOP/COEP] Registration failed:', err));
+          // Give up after 3 reloads to avoid infinite loop
+          if (reloadCount >= 3) {
+            console.warn('[COOP/COEP] crossOriginIsolated still false after', reloadCount, 'reloads. Giving up.');
+            sessionStorage.removeItem(RELOAD_KEY);
+            return;
+          }
+
+          try {
+            // Register SW and wait until it's fully active and controlling this page
+            await navigator.serviceWorker.register('./coop-coep.js', { scope: './' });
+            console.log('[COOP/COEP] SW registered, waiting for it to control this page...');
+
+            // Wait for SW to be ready and controlling
+            await navigator.serviceWorker.ready;
+
+            if (!navigator.serviceWorker.controller) {
+              // SW is ready but not yet controlling — need a reload
+              console.log('[COOP/COEP] SW ready but not controlling, reloading...');
+              sessionStorage.setItem(RELOAD_KEY, String(reloadCount + 1));
+              window.location.reload();
+            } else {
+              // SW is controlling but crossOriginIsolated is still false
+              // This means the SW intercepted but headers didn't take effect — reload once more
+              console.log('[COOP/COEP] SW controlling but crossOriginIsolated=false, reloading to apply headers...');
+              sessionStorage.setItem(RELOAD_KEY, String(reloadCount + 1));
+              window.location.reload();
+            }
+          } catch (err) {
+            console.error('[COOP/COEP] SW registration failed:', err);
+          }
         });
       } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         console.log('[COOP/COEP] Skipping Service Worker on localhost (dev headers already configured)');

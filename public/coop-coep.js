@@ -1,5 +1,5 @@
-/*! coop-coep.js - v0.1.0 - Service Worker to enable SharedArrayBuffer on GitHub Pages */
-/*! Based on https://github.com/gzuidhof/coop-coep */
+/*! coop-coep.js - Service Worker to enable SharedArrayBuffer on GitHub Pages */
+/*! Uses credentialless COEP for mobile browser compatibility */
 
 self.addEventListener('install', () => {
   console.log('[SW] Installing...');
@@ -13,55 +13,65 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  
-  // Skip chrome extensions and other non-http(s) requests
-  if (!url.protocol.startsWith('http')) {
-    return;
-  }
 
-  // Skip cache-only requests that are not same-origin
-  if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') {
-    return;
-  }
+  // Skip non-http(s) requests (chrome-extension://, etc.)
+  if (!url.protocol.startsWith('http')) return;
 
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Don't modify opaque responses
-        if (response.status === 0) {
-          return response;
-        }
+  // Skip cache-only cross-origin requests (can't be intercepted safely)
+  if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') return;
 
-        // Log HTML document requests for debugging
-        const isDocument = event.request.destination === 'document' || 
-                          url.pathname.endsWith('.html') || 
-                          url.pathname === '/' ||
-                          url.pathname.endsWith('/');
-        
-        if (isDocument) {
-          console.log('[SW] Intercepting document:', url.pathname);
-        }
-
-        // Add COOP/COEP headers
-        const newHeaders = new Headers(response.headers);
-        newHeaders.set('Cross-Origin-Embedder-Policy', 'credentialless');
-        newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
-        // Allow same-origin resources to be embedded by cross-origin contexts
-        newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
-
-        if (isDocument) {
-          console.log('[SW] Added COOP/COEP headers to:', url.pathname);
-        }
-
-        return new Response(response.body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers: newHeaders,
-        });
-      })
-      .catch((error) => {
-        console.error('[SW] Fetch failed:', error);
-        throw error;
-      })
-  );
+  event.respondWith(addCoopCoepHeaders(event.request));
 });
+
+async function addCoopCoepHeaders(request) {
+  let response;
+  try {
+    response = await fetch(request);
+  } catch (err) {
+    console.error('[SW] Fetch failed:', err);
+    throw err;
+  }
+
+  // Don't modify opaque responses (cross-origin no-cors)
+  if (response.status === 0) return response;
+
+  const newHeaders = new Headers(response.headers);
+  newHeaders.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+  newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
+
+  // For document/HTML responses: buffer the body to avoid stream cloning issues
+  // on mobile Chrome where new Response(stream, ...) can fail silently.
+  const isDocument =
+    request.destination === 'document' ||
+    request.mode === 'navigate' ||
+    new URL(request.url).pathname.endsWith('.html');
+
+  if (isDocument) {
+    console.log('[SW] Injecting COOP/COEP into document:', new URL(request.url).pathname);
+    try {
+      // Buffer body as ArrayBuffer to avoid ReadableStream cloning issues on mobile
+      const body = await response.arrayBuffer();
+      return new Response(body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: newHeaders,
+      });
+    } catch (err) {
+      console.error('[SW] Failed to buffer document body, falling back to stream:', err);
+    }
+  }
+
+  // For non-document resources: stream is fine
+  try {
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
+  } catch (err) {
+    // Last resort: return original response unmodified
+    console.warn('[SW] Could not inject headers for:', request.url, err);
+    return response;
+  }
+}
