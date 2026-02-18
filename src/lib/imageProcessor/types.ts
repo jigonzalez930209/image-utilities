@@ -12,4 +12,8 @@ export interface ProcessOptions {
   bgModel?: BackgroundModel;
   quality?: number;
   stripMetadata?: boolean;
+  skipAI?: boolean;
+  aiResult?: Blob;
+  onAIResult?: (blob: Blob) => void;
+  resizeDimension?: number;
 }

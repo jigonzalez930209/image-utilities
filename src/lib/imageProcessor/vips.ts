@@ -19,10 +19,7 @@ export const initVips = async (): Promise<void> => {
       
       // Attempt to resolve known wasm files
       if (fileName.endsWith('.wasm')) {
-         return new URL(
-          `../../../node_modules/wasm-vips/lib/${fileName}`,
-          import.meta.url
-        ).href;
+        return `/assets/wasm/${fileName}`;
       }
       
       return fileName;

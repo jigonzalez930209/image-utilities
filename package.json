@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
-    "download:bg": "node scripts/download-background-removal-assets.mjs"
+    "download:bg": "node scripts/download-background-removal-assets.mjs",
+    "setup:wasm": "node scripts/setup-wasm.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",

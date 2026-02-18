@@ -15,47 +15,61 @@ export const convertImage = async (
   const model = options.bgModel || 'isnet_fp16';
   console.log(`[Processor] Processing ${id} (IA: ${options.removeBackground}, Model: ${model})`);
 
-  let currentBytes = await normalizeToPNG(file, options.removeBackground);
+  let currentBytes: Uint8Array;
 
-  if (options.removeBackground && !file.name.toLowerCase().endsWith('.svg')) {
-    try {
-      const startTime = performance.now();
+  // Use pre-calculated AI result if provided
+  if (options.skipAI && options.aiResult) {
+    console.log(`[Processor] Using pre-calculated AI result for ${id}`);
+    currentBytes = new Uint8Array(await options.aiResult.arrayBuffer());
+  } else {
+    // Force normalization for SVGs to avoid ImageMagick delegate errors (like inkscape)
+    const isSVG = file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml';
+    currentBytes = await normalizeToPNG(file, options.removeBackground || isSVG);
 
-      if (model === 'rmbg_14') {
-        try {
-          const resultBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG', model);
-          currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
-        } catch (rmbgErr) {
-          console.warn('[Processor] RMBG unavailable, falling back to Medium model (isnet_fp16).', rmbgErr);
-          const fallback = await runFastModelBackgroundRemoval(currentBytes, id, 'isnet_fp16', 'Pro fallback');
-          currentBytes = new Uint8Array(await fallback.arrayBuffer());
-        }
-      } else {
-        try {
-          const result = await runFastModelBackgroundRemoval(
-            currentBytes,
-            id,
-            model as FastBackgroundModel,
-            'Fast model'
-          );
-          currentBytes = new Uint8Array(await result.arrayBuffer());
-        } catch (fastErr) {
-          const err = fastErr instanceof Error ? fastErr : new Error(String(fastErr));
-          if (isCorsOrFetchError(err)) {
-            console.warn('[Processor] Fast models blocked (CORS/network), using Pro (RMBG).', err.message);
-            const rmbgBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG (CORS fallback)', model);
-            currentBytes = new Uint8Array(await rmbgBlob.arrayBuffer());
-          } else {
-            throw err;
+    if (options.removeBackground && !file.name.toLowerCase().endsWith('.svg')) {
+      try {
+        const startTime = performance.now();
+
+        if (model === 'rmbg_14') {
+          try {
+            const resultBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG', model);
+            currentBytes = new Uint8Array(await resultBlob.arrayBuffer());
+          } catch (rmbgErr) {
+            console.warn('[Processor] RMBG unavailable, falling back to Medium model (isnet_fp16).', rmbgErr);
+            const fallback = await runFastModelBackgroundRemoval(currentBytes, id, 'isnet_fp16', 'Pro fallback');
+            currentBytes = new Uint8Array(await fallback.arrayBuffer());
+          }
+        } else {
+          try {
+            const result = await runFastModelBackgroundRemoval(
+              currentBytes,
+              id,
+              model as FastBackgroundModel,
+              'Fast model'
+            );
+            currentBytes = new Uint8Array(await result.arrayBuffer());
+          } catch (fastErr) {
+            const err = fastErr instanceof Error ? fastErr : new Error(String(fastErr));
+            if (isCorsOrFetchError(err)) {
+              console.warn('[Processor] Fast models blocked (CORS/network), using Pro (RMBG).', err.message);
+              const rmbgBlob = await runRmbgBackgroundRemoval(currentBytes, id, 'RMBG (CORS fallback)', model);
+              currentBytes = new Uint8Array(await rmbgBlob.arrayBuffer());
+            } else {
+              throw err;
+            }
           }
         }
-      }
 
-      console.log(`[Processor] AI Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
-    } catch (err) {
-      const failure = err instanceof Error ? err : new Error(String(err));
-      console.error('[Processor] BG Removal Failed:', failure);
-      throw failure;
+        console.log(`[Processor] AI Inference Finished (${model}) in: ${(performance.now() - startTime).toFixed(2)}ms`);
+        
+        if (options.onAIResult) {
+          options.onAIResult(new Blob([currentBytes.slice()], { type: 'image/png' }));
+        }
+      } catch (err) {
+        const failure = err instanceof Error ? err : new Error(String(err));
+        console.error('[Processor] BG Removal Failed:', failure);
+        throw failure;
+      }
     }
   }
 
@@ -81,8 +95,12 @@ export const convertImage = async (
           image.strip();
         }
 
-        // Auto-resize for ICO if too large (ICO max standard is 256x256)
-        if (formatStr === 'ICO' && (image.width > 256 || image.height > 256)) {
+        // Resize logic
+        if (options.resizeDimension) {
+          console.log(`[Processor] Resizing to ${options.resizeDimension}x${options.resizeDimension}`);
+          image.resize(options.resizeDimension, options.resizeDimension);
+        } else if (formatStr === 'ICO' && (image.width > 256 || image.height > 256)) {
+          // Auto-resize for ICO if too large and no specific dimension chosen
           console.log('[Processor] Resizing large image for ICO compatibility (max 256x256)');
           image.resize(256, 256);
         }
