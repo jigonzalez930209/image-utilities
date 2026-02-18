@@ -1,6 +1,7 @@
 import heic2any from 'heic2any';
 import { ImageMagick, MagickFormat } from '@imagemagick/magick-wasm';
 import { processWithVips, initVips } from './vips';
+import { initMagick } from './magick';
 
 const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
   return new Promise((resolve, reject) => {
@@ -34,7 +35,7 @@ const rasterizeSVG = async (bytes: Uint8Array): Promise<Uint8Array> => {
 
 const browserNormalize = async (bytes: Uint8Array): Promise<Uint8Array> => {
   return new Promise((resolve, reject) => {
-    const blob = new Blob([bytes.slice()], { type: 'image/png' });
+    const blob = new Blob([bytes.slice()]);
     const url = URL.createObjectURL(blob);
     const img = new Image();
 
@@ -71,12 +72,9 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
   const name = file.name.toLowerCase();
   const isSVG = name.endsWith('.svg') || file.type === 'image/svg+xml';
   const isHEIC = name.endsWith('.heic') || name.endsWith('.heif');
+  const isICO = name.endsWith('.ico') || file.type.includes('icon') || file.type.includes('x-icon');
   
-  // Try to initialize Vips early in parallel if it might be needed, 
-  // but don't block on it unless necessary.
-  // We'll just init when needed for now to keep startup cost low
-  
-  console.log(`[Processor] Normalizing for AI: ${file.name}`);
+  console.log(`[Processor] Normalizing for AI: ${file.name} (type: ${file.type})`);
 
   if (isHEIC) {
     try {
@@ -90,11 +88,13 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
 
   if (isSVG) return await rasterizeSVG(originalBytes);
 
-  // Try browser native first (fastest)
-  try {
-    return await browserNormalize(originalBytes);
-  } catch (err) {
-    console.warn('[Processor] Native normalization failed, falling back to Vips/Magick:', err);
+  // Try browser native if NOT an ICO (ICO browser support is flaky for multi-size/complex ones)
+  if (!isICO) {
+    try {
+      return await browserNormalize(originalBytes);
+    } catch (err) {
+      console.warn('[Processor] Native normalization failed, falling back to Vips/Magick:', err);
+    }
   }
 
   // Fallback 1: Try Vips (supports many formats like XCF, RAW, etc.)
@@ -107,9 +107,13 @@ export const normalizeToPNG = async (file: File, force: boolean = false): Promis
   }
 
   // Fallback 2: Try ImageMagick (last resort)
+  // Ensure it's initialized
+  await initMagick();
+  
   return await new Promise<Uint8Array>((resolve) => {
     try {
       ImageMagick.read(originalBytes.slice(), (image) => {
+        // For ICOs, we take the largest frame or first frame
         image.write(MagickFormat.Png, (data) => resolve(new Uint8Array(data.slice())));
       });
     } catch (err) {

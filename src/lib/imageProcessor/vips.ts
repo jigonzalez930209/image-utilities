@@ -3,40 +3,32 @@ import type { ProcessOptions } from './types';
 
 type VipsInstance = Awaited<ReturnType<typeof Vips>>;
 let vips: VipsInstance | null = null;
+let isInitializing: Promise<void> | null = null;
 
 export const initVips = async (): Promise<void> => {
   if (vips) return;
+  if (isInitializing) return isInitializing;
 
-  try {
-    // We need to point to the wasm file. 
-    // Vite will handle the URL resolution for the worker/wasm if we use the ?url suffix or similar,
-    // but looking at magick.ts, they use new URL(..., import.meta.url).
-    
-    // We define a locateFile function for emscripten
-    const locateFile = (fileName: string) => {
-      // Return the URL to the wasm file
-      // We assume the wasm files are in node_modules/wasm-vips/lib/ using the same pattern as magick.ts
-      
-      // Attempt to resolve known wasm files
-      if (fileName.endsWith('.wasm')) {
-        const base = import.meta.env.BASE_URL || '/';
-        return `${base}assets/wasm/${fileName}`.replace(/\/+/g, '/');
-      }
-      
-      return fileName;
-    };
+  isInitializing = (async () => {
+    try {
+      const locateFile = (fileName: string) => {
+        if (fileName.endsWith('.wasm')) {
+          const base = import.meta.env.BASE_URL || '/';
+          return `${base}assets/wasm/${fileName}`.replace(/\/+/g, '/');
+        }
+        return fileName;
+      };
 
-    vips = await Vips({
-      locateFile,
-      // Increase memory limit if needed, defaults are usually fine for basic conversion
-      // initialMemory: 512 * 1024 * 1024, 
-    });
-    
-    console.log('[Processor] Vips initialized', vips.version());
-  } catch (err) {
-    console.error('[Processor] Failed to init Vips:', err);
-    throw err;
-  }
+      vips = await Vips({ locateFile });
+      console.log('[Processor] Vips initialized', vips.version());
+    } catch (err) {
+      console.error('[Processor] Failed to init Vips:', err);
+      isInitializing = null;
+      throw err;
+    }
+  })();
+
+  return isInitializing;
 };
 
 export const processWithVips = async (

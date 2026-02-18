@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Trash2, RefreshCw, CheckCircle, Download, ChevronDown, Eye, ChevronUp, Layers } from 'lucide-react';
+import { Trash2, RefreshCw, CheckCircle, Download, ChevronDown, Eye, ChevronUp, Layers, Image as ImageIcon } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
 import { formatBytes, cn } from '../lib/utils';
 import { OUTPUT_CATEGORIES, type OutputFormat } from '../lib/formats';
@@ -20,6 +20,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
   const [isPendingPreview, setIsPendingPreview] = React.useState(false);
   const [isEditingName, setIsEditingName] = React.useState(false);
   const [tempName, setTempName] = React.useState('');
+  const [hasThumbnailError, setHasThumbnailError] = React.useState(false);
 
   const displayName = image.customName || image.originalName.split('.').slice(0, -1).join('.');
 
@@ -39,11 +40,14 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
 
   // Auto-open preview when URL is ready if requested
   React.useEffect(() => {
+    if (image.previewUrl || image.processedUrl) {
+      setHasThumbnailError(false);
+    }
     if (isPendingPreview && image.previewUrl) {
       setShowPreview(true);
       setIsPendingPreview(false);
     }
-  }, [image.previewUrl, isPendingPreview]);
+  }, [image.previewUrl, image.processedUrl, isPendingPreview]);
 
   const handlePreviewTrigger = async () => {
     if (image.previewUrl) {
@@ -83,11 +87,19 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             !image.removeBackground && "cursor-default active:scale-100"
           )}
         >
-          <img 
-            src={image.previewUrl || image.processedUrl || image.originalUrl} 
-            alt={image.originalName} 
-            className="w-full h-full object-cover" 
-          />
+          {!hasThumbnailError ? (
+            <img 
+              src={image.previewUrl || image.processedUrl || image.originalUrl} 
+              alt={image.originalName} 
+              className="w-full h-full object-cover" 
+              onError={() => setHasThumbnailError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-white/5 gap-1 p-2">
+              <ImageIcon size={24} className="text-white/20" />
+              <span className="text-[8px] text-white/30 truncate w-full text-center">{image.originalName}</span>
+            </div>
+          )}
           
           {image.removeBackground && (
             <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-200">
