@@ -12,6 +12,19 @@ export default defineConfig({
     react(),
     tailwindcss(),
     {
+      name: 'coop-coep-dev-server',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          // Serve coop-coep.js with correct MIME type
+          if (req.url === '/coop-coep.js') {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Service-Worker-Allowed', '/');
+          }
+          next();
+        });
+      }
+    },
+    {
       name: 'wasm-static-fix',
       configureServer(server) {
         server.middlewares.use((req, _res, next) => {
