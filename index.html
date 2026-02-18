@@ -9,7 +9,32 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <title>Image Studio - AI Image Utilities</title>
-    <script src="./coop-coep.js"></script>
+    <script>
+      // Service Worker for COOP/COEP headers (enables SharedArrayBuffer on GitHub Pages)
+      if ('serviceWorker' in navigator && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        const reloadedKey = 'coopCoepReloaded';
+        
+        window.addEventListener('load', () => {
+          if (window.sessionStorage.getItem(reloadedKey)) {
+            window.sessionStorage.removeItem(reloadedKey);
+            console.log('[COOP/COEP] Service Worker is active');
+            return;
+          }
+
+          navigator.serviceWorker.register('./coop-coep.js')
+            .then(registration => {
+              console.log('[COOP/COEP] Service Worker registered:', registration.scope);
+              
+              if (!navigator.serviceWorker.controller) {
+                console.log('[COOP/COEP] Reloading to activate Service Worker...');
+                window.sessionStorage.setItem(reloadedKey, 'true');
+                window.location.reload();
+              }
+            })
+            .catch(err => console.error('[COOP/COEP] Registration failed:', err));
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
