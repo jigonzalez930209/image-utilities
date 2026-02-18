@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { initMagick, preloadModels } from './lib/imageProcessor/index'
+import { initMagick, preloadModels, startBackgroundPreload } from './lib/imageProcessor/index'
 
 const root = document.getElementById('root')!;
 
@@ -12,6 +12,8 @@ const renderApp = () => {
       <App />
     </StrictMode>
   );
+  // Start background model preloading after render, using idle time
+  startBackgroundPreload();
 };
 
 // Only initialize Magick-WASM when crossOriginIsolated is true (SharedArrayBuffer available).
@@ -23,7 +25,8 @@ if (self.crossOriginIsolated) {
     .catch(err => console.error('[main] initMagick failed:', err))
     .finally(renderApp);
 } else {
-  // SW not active yet — render immediately, SW will reload the page
+  // SW not active yet — render immediately, SW will reload the page.
+  // Still start preloading models in background (doesn't need crossOriginIsolated).
   console.log('[main] crossOriginIsolated=false, skipping initMagick until SW reload');
   renderApp();
 }
