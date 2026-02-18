@@ -15,24 +15,34 @@
         const reloadedKey = 'coopCoepReloaded';
         
         window.addEventListener('load', () => {
+          console.log('[COOP/COEP] crossOriginIsolated:', self.crossOriginIsolated);
+          
           if (window.sessionStorage.getItem(reloadedKey)) {
             window.sessionStorage.removeItem(reloadedKey);
-            console.log('[COOP/COEP] Service Worker is active');
+            console.log('[COOP/COEP] Service Worker should be active');
+            
+            if (!self.crossOriginIsolated) {
+              console.error('[COOP/COEP] crossOriginIsolated is still false! Headers may not be working.');
+            }
             return;
           }
 
-          navigator.serviceWorker.register('./coop-coep.js')
+          navigator.serviceWorker.register('./coop-coep.js', { scope: './' })
             .then(registration => {
               console.log('[COOP/COEP] Service Worker registered:', registration.scope);
               
               if (!navigator.serviceWorker.controller) {
                 console.log('[COOP/COEP] Reloading to activate Service Worker...');
                 window.sessionStorage.setItem(reloadedKey, 'true');
-                window.location.reload();
+                setTimeout(() => window.location.reload(), 100);
+              } else {
+                console.log('[COOP/COEP] Service Worker already controlling');
               }
             })
             .catch(err => console.error('[COOP/COEP] Registration failed:', err));
         });
+      } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('[COOP/COEP] Skipping Service Worker on localhost (dev headers already configured)');
       }
     </script>
   </head>

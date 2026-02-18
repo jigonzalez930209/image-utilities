@@ -12,6 +12,13 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Skip chrome extensions and other non-http(s) requests
+  if (!url.protocol.startsWith('http')) {
+    return;
+  }
+
   // Skip cache-only requests that are not same-origin
   if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') {
     return;
@@ -25,10 +32,24 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
 
+        // Log HTML document requests for debugging
+        const isDocument = event.request.destination === 'document' || 
+                          url.pathname.endsWith('.html') || 
+                          url.pathname === '/' ||
+                          url.pathname.endsWith('/');
+        
+        if (isDocument) {
+          console.log('[SW] Intercepting document:', url.pathname);
+        }
+
         // Add COOP/COEP headers
         const newHeaders = new Headers(response.headers);
         newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
         newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+
+        if (isDocument) {
+          console.log('[SW] Added COOP/COEP headers to:', url.pathname);
+        }
 
         return new Response(response.body, {
           status: response.status,
