@@ -1,4 +1,3 @@
-import { removeBackground, type Config as BGConfig } from '@imgly/background-removal';
 import { cachedFetch } from './cache';
 
 const getPublicPath = (): string => {
@@ -7,28 +6,48 @@ const getPublicPath = (): string => {
 };
 
 // ─── Fast model (imgly) preload ───────────────────────────────────────────────
-// Runs removeBackground on a 1×1 transparent PNG to force the library to
-// download and cache all ONNX/WASM assets for the given model.
-const TINY_PNG = new Uint8Array([
-  137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,6,0,0,0,
-  31,21,196,137,0,0,0,10,73,68,65,84,120,156,98,0,1,0,0,5,0,1,13,10,45,180,
-  0,0,0,0,73,69,78,68,174,66,96,130,
-]);
-
+// @imgly/background-removal uses a resources.json manifest that lists all
+// chunk files needed. We fetch them directly into the browser cache instead
+// of running a full inference (which requires a valid image to decode).
 const preloadFastModel = async (model: 'isnet_fp16' | 'isnet_quint8'): Promise<void> => {
-  const config: BGConfig = {
-    model,
-    publicPath: getPublicPath(),
-    fetchArgs: { fetch: cachedFetch },
-    progress: () => { /* silent */ },
-  };
-  const blob = new Blob([TINY_PNG], { type: 'image/png' });
-  await removeBackground(blob, config);
+  const publicPath = getPublicPath();
+  const resourcesUrl = `${publicPath}resources.json`;
+
+  // Fetch the manifest
+  const res = await fetch(resourcesUrl);
+  if (!res.ok) throw new Error(`Failed to fetch resources.json: ${res.status}`);
+  const resources = await res.json() as Record<string, { chunks: { name: string }[] }>;
+
+  // Collect all chunk filenames referenced in the manifest
+  const chunkNames = new Set<string>();
+  for (const entry of Object.values(resources)) {
+    for (const chunk of entry.chunks ?? []) {
+      if (chunk.name) chunkNames.add(chunk.name);
+    }
+  }
+
+  // Also include the model-specific ONNX file pattern
+  // imgly names model files like: isnet_fp16.onnx, isnet_quint8.onnx
+  // They appear as chunks in resources.json already, but add the model key too
+  const modelKey = `/${model}.onnx`;
+  if (resources[modelKey]) {
+    for (const chunk of resources[modelKey].chunks ?? []) {
+      chunkNames.add(chunk.name);
+    }
+  }
+
+  // Fetch each chunk using cachedFetch (writes to Cache API)
+  let fetched = 0;
+  for (const name of chunkNames) {
+    const url = `${publicPath}${name}`;
+    await cachedFetch(url).catch(() => { /* skip on error */ });
+    fetched++;
+  }
+
+  console.log(`[Preload] ${model}: cached ${fetched} chunks`);
 };
 
 // ─── RMBG-1.4 (Pro) preload from local assets ────────────────────────────────
-// Fetch model files from our own domain into the Cache API so they're
-// ready when the worker initializes the pipeline (no HuggingFace requests).
 const RMBG_FILES = [
   'onnx/model.onnx',
   'config.json',
@@ -77,18 +96,17 @@ let started = false;
 
 /**
  * Kick off background model preloading in priority order:
- *   1. Medium (isnet_fp16)  — most commonly used
- *   2. Pro (RMBG-1.4)       — largest, start early
+ *   1. Medium (isnet_fp16)    — most commonly used
+ *   2. Pro (RMBG-1.4)         — largest, start early
  *   3. Express (isnet_quint8) — smallest, lowest priority
  *
- * All downloads are sequential to avoid saturating mobile bandwidth.
+ * Sequential to avoid saturating mobile bandwidth.
  * Uses requestIdleCallback so it never blocks the UI.
  */
 export const startBackgroundPreload = (): void => {
   if (started) return;
   started = true;
 
-  // Fire and forget — errors are caught internally
   void (async () => {
     await runWhenIdle(() => preloadFastModel('isnet_fp16'), 'Medium model (isnet_fp16)');
     await runWhenIdle(() => preloadRmbgPro(), 'Pro model (RMBG-1.4 files)');
