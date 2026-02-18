@@ -83,7 +83,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
             !image.removeBackground && "cursor-default active:scale-100"
           )}
         >
-          <img src={image.originalUrl} alt={image.originalName} className="w-full h-full object-cover" />
+          <img 
+            src={image.previewUrl || image.processedUrl || image.originalUrl} 
+            alt={image.originalName} 
+            className="w-full h-full object-cover" 
+          />
           
           {image.removeBackground && (
             <div className="absolute inset-0 bg-brand/30 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all duration-200">
