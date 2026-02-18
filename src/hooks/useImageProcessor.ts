@@ -67,41 +67,19 @@ export const useImageProcessor = () => {
   }, []);
 
   const addImages = useCallback((files: File[]): void => {
-    const newImages: ProcessedImage[] = files.map((file) => {
-      const id = Math.random().toString(36).substring(7);
-      const isProblematic = /\.(ico|heic|heif|tiff|tif|psd|xcf)$/i.test(file.name);
-      
-      const img: ProcessedImage = {
-        id,
-        originalName: file.name,
-        originalSize: file.size,
-        originalUrl: URL.createObjectURL(file),
-        status: isProblematic ? 'processing' : 'idle',
-        format: 'PNG',
-        removeBackground: false,
-        bgModel: 'isnet_fp16',
-        stripMetadata: true,
-      };
-
-      // Trigger background normalization for problematic formats to show a preview
-      if (isProblematic) {
-        (async () => {
-          try {
-            const { normalizeToPNG } = await import('../lib/imageProcessor/normalize');
-            const pngBytes = await normalizeToPNG(file, true);
-            const previewUrl = URL.createObjectURL(new Blob([pngBytes.slice()], { type: 'image/png' }));
-            updateImageOptions(id, { previewUrl, status: 'idle' });
-          } catch (err) {
-            console.error(`[Processor] Initial preview generation failed for ${file.name}:`, err);
-            updateImageOptions(id, { status: 'idle' });
-          }
-        })();
-      }
-
-      return img;
-    });
+    const newImages: ProcessedImage[] = files.map((file) => ({
+      id: Math.random().toString(36).substring(7),
+      originalName: file.name,
+      originalSize: file.size,
+      originalUrl: URL.createObjectURL(file),
+      status: 'idle',
+      format: 'PNG',
+      removeBackground: false,
+      bgModel: 'isnet_fp16',
+      stripMetadata: true,
+    }));
     setImages((prev) => [...prev, ...newImages]);
-  }, [updateImageOptions]);
+  }, []);
 
   const processImage = useCallback(async (id: string): Promise<void> => {
     const img = images.find((i) => i.id === id);

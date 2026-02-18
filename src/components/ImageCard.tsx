@@ -89,15 +89,16 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
         >
           {!hasThumbnailError ? (
             <img 
-              src={image.previewUrl || image.processedUrl || image.originalUrl} 
+              src={image.originalUrl} 
               alt={image.originalName} 
               className="w-full h-full object-cover" 
               onError={() => setHasThumbnailError(true)}
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-white/5 gap-1 p-2">
-              <ImageIcon size={24} className="text-white/20" />
-              <span className="text-[8px] text-white/30 truncate w-full text-center">{image.originalName}</span>
+            <div className="w-full h-full flex flex-col items-center justify-center bg-linear-to-br from-brand/10 to-purple-500/10 gap-2 p-2 border border-brand/20">
+              <ImageIcon size={32} className="text-brand/60" />
+              <span className="text-[9px] text-brand/80 font-bold truncate w-full text-center px-1">{image.format}</span>
+              <span className="text-[7px] text-white/30 truncate w-full text-center">{formatBytes(image.originalSize)}</span>
             </div>
           )}
           
