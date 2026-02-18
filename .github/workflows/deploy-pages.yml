@@ -39,6 +39,9 @@ jobs:
       - name: Download background-removal assets
         run: pnpm run download:bg
 
+      - name: Download RMBG-1.4 (Pro model)
+        run: pnpm run download:rmbg
+
       - name: Build
         run: pnpm run build
 

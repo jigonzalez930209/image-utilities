@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "download:bg": "node scripts/download-background-removal-assets.mjs",
+    "download:rmbg": "node scripts/download-rmbg.mjs",
     "setup:wasm": "node scripts/setup-wasm.mjs"
   },
   "dependencies": {

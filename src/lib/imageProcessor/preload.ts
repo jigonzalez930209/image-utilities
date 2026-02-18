@@ -26,21 +26,22 @@ const preloadFastModel = async (model: 'isnet_fp16' | 'isnet_quint8'): Promise<v
   await removeBackground(blob, config);
 };
 
-// ─── RMBG-1.4 (Pro) preload via transformers.js ──────────────────────────────
-// We fetch the model files directly into the Cache API so they're ready
-// when the worker initializes the pipeline.
+// ─── RMBG-1.4 (Pro) preload from local assets ────────────────────────────────
+// Fetch model files from our own domain into the Cache API so they're
+// ready when the worker initializes the pipeline (no HuggingFace requests).
 const RMBG_FILES = [
   'onnx/model.onnx',
   'config.json',
   'preprocessor_config.json',
 ];
-const RMBG_BASE = 'https://huggingface.co/Xenova/RMBG-1.4/resolve/main/';
 
 const preloadRmbgPro = async (): Promise<void> => {
   if (typeof caches === 'undefined') return;
+  const base = typeof import.meta.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
+  const modelBase = `${window.location.origin}${base}assets/models/Xenova/RMBG-1.4/`;
   const cache = await caches.open('transformers-cache-v1');
   for (const file of RMBG_FILES) {
-    const url = `${RMBG_BASE}${file}`;
+    const url = `${modelBase}${file}`;
     const existing = await cache.match(url);
     if (existing) continue;
     try {

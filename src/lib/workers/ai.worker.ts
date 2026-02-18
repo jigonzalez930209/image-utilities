@@ -46,8 +46,9 @@ const detectBestProvider = async (): Promise<string> => {
 
 // ─── Environment Configuration ───────────────────────────────────────────────
 env.allowLocalModels = true;
+env.allowRemoteModels = false;  // All models served locally — no HuggingFace requests
 env.localModelPath = `${BASE}assets/models/`.replace(/\/+/g, '/');
-env.useBrowserCache = false;
+env.useBrowserCache = true;  // Cache model files in browser Cache API
 
 if (env.backends.onnx.wasm) {
   env.backends.onnx.wasm.wasmPaths = `${BASE}assets/models/wasm/`.replace(/\/+/g, '/');
