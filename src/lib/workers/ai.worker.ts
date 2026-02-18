@@ -6,14 +6,27 @@ import * as ort from 'onnxruntime-web';
 // Important: 'localModelPath' is used as the base.
 // Models should be at: /assets/models/<model_id>/
 // e.g. /assets/models/onnx-community/lama-fp16-onnx/
+// Determine base path from self.location (for GitHub Pages subpaths)
+const getBase = () => {
+  // If we are in a subpath like /image-utilities/, and the worker is in /image-utilities/assets/*.js
+  // self.location.pathname will be /image-utilities/assets/ai.worker-XXXX.js
+  const path = self.location.pathname;
+  if (path.includes('/assets/')) {
+    return path.split('/assets/')[0] + '/';
+  }
+  return '/';
+};
+
+const BASE = getBase();
+
 env.allowLocalModels = true;
 // env.allowRemoteModels = false; // Keep remote allowed as fallback if needed, or disable to force local
-env.localModelPath = '/assets/models/';
+env.localModelPath = `${BASE}assets/models/`.replace(/\/+/g, '/');
 env.useBrowserCache = false;
 
 // WASM configuration
 if (env.backends.onnx.wasm) {
-  env.backends.onnx.wasm.wasmPaths = '/assets/models/wasm/';
+  env.backends.onnx.wasm.wasmPaths = `${BASE}assets/models/wasm/`.replace(/\/+/g, '/');
   env.backends.onnx.wasm.numThreads = 4; // Use multi-threading
 }
 
@@ -75,7 +88,7 @@ async function processInpaint(imageBlob: Blob, maskBlob: Blob, requestId: string
         if (!inpaintPipeline) {
             console.log(`[Worker] Initializing MI-GAN InferenceSession (${modelPath})`);
             self.postMessage({ type: 'progress', percent: 10, file: 'Loading MI-GAN' });
-            ort.env.wasm.wasmPaths = '/assets/models/wasm/';
+            ort.env.wasm.wasmPaths = `${BASE}assets/models/wasm/`.replace(/\/+/g, '/');
             inpaintPipeline = await ort.InferenceSession.create(modelPath, {
                 executionProviders: ['wasm'],
                 graphOptimizationLevel: 'all'

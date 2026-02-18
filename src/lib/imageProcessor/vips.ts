@@ -19,7 +19,8 @@ export const initVips = async (): Promise<void> => {
       
       // Attempt to resolve known wasm files
       if (fileName.endsWith('.wasm')) {
-        return `/assets/wasm/${fileName}`;
+        const base = import.meta.env.BASE_URL || '/';
+        return `${base}assets/wasm/${fileName}`.replace(/\/+/g, '/');
       }
       
       return fileName;

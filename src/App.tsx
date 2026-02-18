@@ -76,7 +76,11 @@ const App: React.FC = () => {
             }}
             className="flex justify-center"
           >
-            <img src="/logo.svg" alt="Image Studio Logo" className="w-24 h-24 md:w-32 md:h-32" />
+            <img 
+              src={`${import.meta.env.BASE_URL}logo.svg`.replace(/\/+/g, '/')} 
+              alt="Image Studio Logo" 
+              className="w-24 h-24 md:w-32 md:h-32" 
+            />
           </motion.div>
 
           <motion.h1 
