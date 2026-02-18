@@ -1,5 +1,6 @@
-import { pipeline, env, RawImage, type ImageSegmentationPipeline, type ImageToImagePipeline } from '@huggingface/transformers';
+import { pipeline, env, RawImage, type ImageToImagePipeline } from '@huggingface/transformers';
 import * as ort from 'onnxruntime-web';
+import { detectOrtProvider, getRmbgSession, runRmbgOrt, type OrtProvider } from './rmbgOrt';
 
 // Determine base path from self.location (for GitHub Pages subpaths)
 const getBase = () => {
@@ -17,29 +18,20 @@ const optimalThreads = hasSharedArrayBuffer
   ? Math.min(navigator.hardwareConcurrency ?? 4, 4)
   : 1;
 
-// Detect best available execution provider
-// WebGPU >> WebGL >> WASM (single or multi thread)
-const detectBestProvider = async (): Promise<string> => {
+// Detect best available execution provider for @huggingface/transformers
+// Valid values: 'webgpu' | 'wasm'  (webgl is NOT supported by transformers.js)
+const detectBestProvider = async (): Promise<'webgpu' | 'wasm'> => {
   // WebGPU: fastest on modern mobile/desktop GPUs
   if ('gpu' in navigator) {
     try {
       const adapter = await (navigator as { gpu: { requestAdapter: () => Promise<unknown> } }).gpu.requestAdapter();
       if (adapter) {
-        console.log('[Worker] WebGPU available — using gpu provider');
+        console.log('[Worker] WebGPU available — using webgpu provider');
         return 'webgpu';
       }
     } catch { /* not available */ }
   }
-  // WebGL: good GPU acceleration fallback
-  try {
-    const canvas = new OffscreenCanvas(1, 1);
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (gl) {
-      console.log('[Worker] WebGL available — using webgl provider');
-      return 'webgl';
-    }
-  } catch { /* not available */ }
-  // WASM: CPU fallback (single or multi thread)
+  // WASM: CPU fallback (single or multi thread based on SharedArrayBuffer)
   console.log(`[Worker] Using wasm provider (threads: ${optimalThreads})`);
   return 'wasm';
 };
@@ -58,11 +50,12 @@ if (env.backends.onnx.wasm) {
 console.log(`[Worker] Init — SharedArrayBuffer: ${hasSharedArrayBuffer}, threads: ${optimalThreads}`);
 
 // ─── State ───────────────────────────────────────────────────────────────────
-let rmbgPipeline: ImageSegmentationPipeline | null = null;
+let rmbgSession: ort.InferenceSession | null = null;
 let upscalerPipeline: ImageToImagePipeline | null = null;
 let activeUpscalerId: string | null = null;
 let inpaintSession: ort.InferenceSession | null = null;
-let bestProvider: string | null = null;
+let ortProvider: OrtProvider | null = null;
+let transformersProvider: 'webgpu' | 'wasm' | null = null;
 
 // ─── Message Types ───────────────────────────────────────────────────────────
 type WorkerMessage =
@@ -76,8 +69,8 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const { type } = e.data;
   try {
     switch (type) {
-      case 'init_rmbg':      await initializeRmbg(e.data.id, e.data.modelId); break;
-      case 'process_rmbg':   await processRmbg(e.data.id, e.data.image, e.data.modelId); break;
+      case 'init_rmbg':      await initializeRmbg(e.data.id); break;
+      case 'process_rmbg':   await processRmbg(e.data.id, e.data.image); break;
       case 'init_upscaler':  await initializeUpscaler(e.data.modelId); break;
       case 'process_upscaler': await processUpscaler(e.data.image, e.data.modelId, e.data.requestId); break;
       case 'process_inpaint':  await processInpaint(e.data.image, e.data.mask, e.data.requestId); break;
@@ -93,44 +86,31 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   }
 };
 
-// ─── RMBG ────────────────────────────────────────────────────────────────────
-async function initializeRmbg(id: string, modelId?: string) {
-  const targetModel = modelId === 'rmbg_14' ? 'Xenova/RMBG-1.4' : (modelId || 'Xenova/RMBG-1.4');
-  if (!rmbgPipeline) {
-    if (!bestProvider) bestProvider = await detectBestProvider();
-    console.log(`[Worker] Initializing RMBG: ${targetModel} (provider: ${bestProvider})`);
-    const result = await pipeline('image-segmentation', targetModel, {
-      device: bestProvider as Parameters<typeof pipeline>[2] extends { device?: infer D } ? D : never,
-      dtype: 'fp32',
-      progress_callback: (p: { status: string; progress?: number; file?: string }) => {
-        if (p.status === 'progress' && p.progress !== undefined) {
-          self.postMessage({ type: 'progress', percent: p.progress, id, file: p.file || '' });
-        }
-      },
-    });
-    rmbgPipeline = result as ImageSegmentationPipeline;
+// ─── RMBG (via onnxruntime-web — supports webgpu, webgl, wasm) ───────────────
+async function initializeRmbg(id: string) {
+  if (!rmbgSession) {
+    if (!ortProvider) ortProvider = await detectOrtProvider();
+    const modelUrl = `${BASE}assets/models/Xenova/RMBG-1.4/onnx/model.onnx`.replace(/\/+/g, '/');
+    const wasmPaths = `${BASE}assets/models/wasm/`.replace(/\/+/g, '/');
+    console.log(`[Worker] Initializing RMBG-1.4 via ORT (provider: ${ortProvider})`);
+    rmbgSession = await getRmbgSession(modelUrl, wasmPaths, ortProvider);
   }
   self.postMessage({ type: 'rmbg_ready', id });
 }
 
-async function processRmbg(id: string, imageBlob: Blob, modelId?: string) {
-  if (!rmbgPipeline) await initializeRmbg(id, modelId);
-  const image = await RawImage.fromBlob(imageBlob);
-  const output = await rmbgPipeline!(image);
-  self.postMessage({
-    type: 'rmbg_complete',
-    id,
-    mask: await (output as unknown as { toBlob: () => Promise<Blob> }).toBlob(),
-  });
+async function processRmbg(id: string, imageBlob: Blob) {
+  if (!rmbgSession) await initializeRmbg(id);
+  const maskBlob = await runRmbgOrt(imageBlob, rmbgSession!);
+  self.postMessage({ type: 'rmbg_complete', id, mask: maskBlob });
 }
 
-// ─── Upscaler ────────────────────────────────────────────────────────────────
+// ─── Upscaler (via transformers.js — webgpu or wasm) ─────────────────────────
 async function initializeUpscaler(modelId: string) {
   if (!upscalerPipeline || activeUpscalerId !== modelId) {
-    if (!bestProvider) bestProvider = await detectBestProvider();
-    console.log(`[Worker] Initializing Upscaler: ${modelId} (provider: ${bestProvider})`);
+    if (!transformersProvider) transformersProvider = await detectBestProvider();
+    console.log(`[Worker] Initializing Upscaler: ${modelId} (provider: ${transformersProvider})`);
     const result = await pipeline('image-to-image', modelId, {
-      device: bestProvider as Parameters<typeof pipeline>[2] extends { device?: infer D } ? D : never,
+      device: transformersProvider as Parameters<typeof pipeline>[2] extends { device?: infer D } ? D : never,
       dtype: 'fp32',
     });
     upscalerPipeline = result as ImageToImagePipeline;
@@ -160,12 +140,11 @@ async function processInpaint(imageBlob: Blob, maskBlob: Blob, requestId: string
   const modelPath = `${env.localModelPath}${modelId}/model.onnx`;
 
   if (!inpaintSession) {
-    if (!bestProvider) bestProvider = await detectBestProvider();
-    console.log(`[Worker] Initializing MI-GAN (${modelPath}, provider: ${bestProvider})`);
+    if (!ortProvider) ortProvider = await detectOrtProvider();
+    console.log(`[Worker] Initializing MI-GAN (${modelPath}, provider: ${ortProvider})`);
     self.postMessage({ type: 'progress', percent: 10, file: 'Loading MI-GAN' });
     ort.env.wasm.wasmPaths = `${BASE}assets/models/wasm/`.replace(/\/+/g, '/');
-    // For inpaint, try best provider then fall back to wasm
-    const providers: string[] = bestProvider !== 'wasm' ? [bestProvider, 'wasm'] : ['wasm'];
+    const providers: string[] = ortProvider !== 'wasm' ? [ortProvider, 'wasm'] : ['wasm'];
     inpaintSession = await ort.InferenceSession.create(modelPath, {
       executionProviders: providers,
       graphOptimizationLevel: 'all',
