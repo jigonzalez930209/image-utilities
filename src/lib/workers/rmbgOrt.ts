@@ -1,39 +1,32 @@
 /**
  * RMBG-1.4 inference using onnxruntime-web directly.
  * This bypasses @huggingface/transformers to gain access to all ORT
- * execution providers: webgpu, webgl, wasm.
+ * execution providers: webgpu, wasm.
+ *
+ * NOTE: WebGL backend cannot be registered inside a Web Worker —
+ * ort.webgl side-effect import only works on the main thread.
+ * Providers supported in workers: webgpu, wasm.
  *
  * Preprocessing: resize to 1024×1024, normalize to [-1, 1] (mean=0.5, std=0.5)
  * Output: single-channel float32 mask, sigmoid → alpha channel
  */
 import * as ort from 'onnxruntime-web';
-// Side-effect import: registers the WebGL backend with ORT.
-// Without this, 'webgl' is silently removed from executionProviders.
-import 'onnxruntime-web/webgl';
 import { RawImage } from '@huggingface/transformers';
 
 const MODEL_SIZE = 1024;
 
 // ─── Execution provider selection ────────────────────────────────────────────
-// ort.InferenceSession supports: webgpu, webgl, wasm
-// transformers.js pipeline() only supports: webgpu, wasm (not webgl)
-// By using ort directly we can leverage WebGL on devices without WebGPU.
-export type OrtProvider = 'webgpu' | 'webgl' | 'wasm';
+// Inside a Web Worker, only 'webgpu' and 'wasm' are available.
+// 'webgl' requires the ort.webgl bundle side-effect on the main thread.
+export type OrtProvider = 'webgpu' | 'wasm';
 
 export const detectOrtProvider = async (): Promise<OrtProvider> => {
-  // WebGPU
   if ('gpu' in navigator) {
     try {
       const adapter = await (navigator as { gpu: { requestAdapter: () => Promise<unknown> } }).gpu.requestAdapter();
       if (adapter) { console.log('[RMBG] provider: webgpu'); return 'webgpu'; }
-    } catch { /* skip */ }
+    } catch { /* WebGPU not available */ }
   }
-  // WebGL via OffscreenCanvas
-  try {
-    const canvas = new OffscreenCanvas(1, 1);
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (gl) { console.log('[RMBG] provider: webgl'); return 'webgl'; }
-  } catch { /* skip */ }
   console.log('[RMBG] provider: wasm');
   return 'wasm';
 };
