@@ -7,6 +7,9 @@
  * Output: single-channel float32 mask, sigmoid → alpha channel
  */
 import * as ort from 'onnxruntime-web';
+// Side-effect import: registers the WebGL backend with ORT.
+// Without this, 'webgl' is silently removed from executionProviders.
+import 'onnxruntime-web/webgl';
 import { RawImage } from '@huggingface/transformers';
 
 const MODEL_SIZE = 1024;
