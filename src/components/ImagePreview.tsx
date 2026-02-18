@@ -139,18 +139,23 @@ const ComparisonSlider: React.FC<ComparisonSliderProps> = ({ original, processed
   return (
     <div 
       ref={containerRef}
-      className="relative w-full aspect-video md:aspect-[3/2] rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 select-none group/slider"
+      className="relative w-full aspect-video md:aspect-3/2 rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 select-none group/slider"
     >
-      {/* Background (After) */}
-      <div className="absolute inset-0 checkerboard bg-opacity-50" />
+      {/* Solid dark background for the whole container */}
+      <div className="absolute inset-0 bg-slate-900" />
+
+      {/* Background (After) - processed image with checkerboard */}
+      <div className="absolute inset-0 checkerboard" />
       <img src={processed} className="absolute inset-0 w-full h-full object-contain pointer-events-none z-10" alt="After" />
 
-      {/* Foreground (Before) */}
+      {/* Foreground (Before) - original image, clipped to left portion */}
       <div 
-        className="absolute inset-0 overflow-hidden z-20 pointer-events-none"
+        className="absolute inset-0 w-full h-full overflow-hidden z-20 pointer-events-none"
         style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
       >
-        <img src={original} className="absolute inset-0 w-full h-full object-contain" alt="Before" />
+        {/* Solid bg so original never shows checkerboard */}
+        <div className="absolute inset-0 bg-slate-900" />
+        <img src={original} className="absolute inset-0 w-full h-full object-contain pointer-events-none" alt="Before" />
       </div>
 
       {/* Draggable Handle */}
