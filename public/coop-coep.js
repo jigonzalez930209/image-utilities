@@ -44,8 +44,10 @@ self.addEventListener('fetch', (event) => {
 
         // Add COOP/COEP headers
         const newHeaders = new Headers(response.headers);
-        newHeaders.set('Cross-Origin-Embedder-Policy', 'require-corp');
+        newHeaders.set('Cross-Origin-Embedder-Policy', 'credentialless');
         newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
+        // Allow same-origin resources to be embedded by cross-origin contexts
+        newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
         if (isDocument) {
           console.log('[SW] Added COOP/COEP headers to:', url.pathname);

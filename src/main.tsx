@@ -4,16 +4,26 @@ import './index.css'
 import App from './App.tsx'
 import { initMagick, preloadModels } from './lib/imageProcessor/index'
 
-// Initialize Magick-WASM before rendering
-initMagick().then(() => {
-  preloadModels(); // Start pre-loading after Magick is ready
-  createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')!;
+
+const renderApp = () => {
+  createRoot(root).render(
     <StrictMode>
       <App />
     </StrictMode>
   );
-}).catch(err => {
-  console.error('Failed to initialize ImageMagick:', err);
-  // Still render, but maybe with a warning
-  createRoot(document.getElementById('root')!).render(<App />);
-});
+};
+
+// Only initialize Magick-WASM when crossOriginIsolated is true (SharedArrayBuffer available).
+// On first load the SW is not yet active so crossOriginIsolated=false — the SW will trigger
+// a page reload and on the second load everything is ready.
+if (self.crossOriginIsolated) {
+  initMagick()
+    .then(() => preloadModels())
+    .catch(err => console.error('[main] initMagick failed:', err))
+    .finally(renderApp);
+} else {
+  // SW not active yet — render immediately, SW will reload the page
+  console.log('[main] crossOriginIsolated=false, skipping initMagick until SW reload');
+  renderApp();
+}

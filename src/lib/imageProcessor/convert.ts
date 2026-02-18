@@ -4,6 +4,7 @@ import { runFastModelBackgroundRemoval, isCorsOrFetchError } from './fastModels'
 import { runRmbgBackgroundRemoval } from './rmbgRemoval';
 import { OUTPUT_FORMATS } from '../formats';
 import { convertWithVips, initVips } from './vips';
+import { initMagick } from './magick';
 import type { FastBackgroundModel, ProcessOptions } from './types';
 
 export const convertImage = async (
@@ -87,48 +88,53 @@ export const convertImage = async (
   const format = (formatStr === 'SVG' ? MagickFormat.Svg : formatStr) as MagickFormat;
 
   return await new Promise((resolve, reject) => {
-    try {
-      ImageMagick.read(currentBytes, (image) => {
-        if (options.quality) image.quality = options.quality * 100;
-        if (options.stripMetadata) {
-          console.log('[Processor] Stripping metadata for privacy');
-          image.strip();
-        }
+    initMagick()
+      .then(() => {
+        try {
+          ImageMagick.read(currentBytes, (image) => {
+            if (options.quality) image.quality = options.quality * 100;
+            if (options.stripMetadata) {
+              console.log('[Processor] Stripping metadata for privacy');
+              image.strip();
+            }
 
-        // Resize logic
-        if (options.resizeDimension) {
-          console.log(`[Processor] Resizing to ${options.resizeDimension}x${options.resizeDimension}`);
-          image.resize(options.resizeDimension, options.resizeDimension);
-        } else if (formatStr === 'ICO' && (image.width > 256 || image.height > 256)) {
-          // Auto-resize for ICO if too large and no specific dimension chosen
-          console.log('[Processor] Resizing large image for ICO compatibility (max 256x256)');
-          image.resize(256, 256);
+            // Resize logic
+            if (options.resizeDimension) {
+              console.log(`[Processor] Resizing to ${options.resizeDimension}x${options.resizeDimension}`);
+              image.resize(options.resizeDimension, options.resizeDimension);
+            } else if (formatStr === 'ICO' && (image.width > 256 || image.height > 256)) {
+              console.log('[Processor] Resizing large image for ICO compatibility (max 256x256)');
+              image.resize(256, 256);
+            }
+
+            image.write(format, (data) => {
+              resolve(new Blob([data.slice()], { type: `image/${formatStr.toLowerCase()}` }));
+            });
+          });
+        } catch (magickErr) {
+          console.warn(`[Processor] Magick conversion to ${formatStr} failed, trying Vips...`, magickErr);
+          initVips()
+            .then(() => convertWithVips(currentBytes, formatStr, file.name, options))
+            .then(vipsData => {
+              resolve(new Blob([vipsData.slice()], { type: `image/${formatStr.toLowerCase()}` }));
+            })
+            .catch(vipsErr => {
+              console.error(`[Processor] Vips conversion also failed for ${formatStr}:`, vipsErr);
+              reject(new Error(`Conversion to ${formatStr} failed. Magick: ${(magickErr as Error).message}. Vips: ${vipsErr.message || vipsErr}`));
+            });
         }
-        
-        // Attempt Magick write
-        image.write(format, (data) => {
-          resolve(new Blob([data.slice()], { type: `image/${formatStr.toLowerCase()}` }));
-        });
-      });
-    } catch (magickErr) {
-      console.warn(`[Processor] Magick conversion to ${formatStr} failed, trying Vips...`, magickErr);
-      
-      // Fallback to Vips
-      initVips().then(() => {
-        convertWithVips(currentBytes, formatStr, file.name, options)
+      })
+      .catch(initErr => {
+        console.error('[Processor] initMagick failed, trying Vips directly...', initErr);
+        initVips()
+          .then(() => convertWithVips(currentBytes, formatStr, file.name, options))
           .then(vipsData => {
             resolve(new Blob([vipsData.slice()], { type: `image/${formatStr.toLowerCase()}` }));
           })
           .catch(vipsErr => {
-            console.error(`[Processor] Vips conversion also failed for ${formatStr}:`, vipsErr);
-            // Reject with a clear message explaining both failures
-            reject(new Error(`Conversion to ${formatStr} failed. Magick: ${(magickErr as Error).message}. Vips: ${vipsErr.message || vipsErr}`));
+            reject(new Error(`Conversion to ${formatStr} failed. Magick init: ${(initErr as Error).message}. Vips: ${vipsErr.message || vipsErr}`));
           });
-      }).catch(err => {
-         console.error('[Processor] Failed to init Vips for fallback:', err);
-         reject(magickErr);
       });
-    }
   });
 };
 
