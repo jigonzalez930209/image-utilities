@@ -69,19 +69,30 @@ function download(url, destPath) {
 }
 
 async function main() {
-  console.log('Downloading Xenova/RMBG-1.4 → public/assets/models/Xenova/RMBG-1.4/');
+  console.log('Downloading briaai/RMBG-1.4 → public/assets/models/Xenova/RMBG-1.4/');
   mkdirSync(join(OUT_DIR, 'onnx'), { recursive: true });
 
+  let downloaded = 0;
   for (const file of FILES) {
     const url = `${HF_BASE}/${file}`;
     const dest = join(OUT_DIR, file);
-    await download(url, dest);
+    try {
+      await download(url, dest);
+      downloaded++;
+    } catch (err) {
+      console.warn(`  Skipping ${file}: ${err.message}`);
+    }
   }
 
-  console.log('Done. RMBG-1.4 model is ready at public/assets/models/Xenova/RMBG-1.4/');
+  if (downloaded === 0) {
+    console.warn('WARNING: No RMBG files downloaded. Pro model will not be available.');
+  } else {
+    console.log(`Done. ${downloaded}/${FILES.length} RMBG-1.4 files ready.`);
+  }
 }
 
 main().catch((err) => {
   console.error(err);
-  process.exit(1);
+  console.warn('RMBG download failed - Pro model will not be available');
+  process.exit(0); // Don't fail the build
 });
