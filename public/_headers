@@ -1,0 +1,18 @@
+# Cloudflare Pages headers for Cross-Origin Isolation
+# Required for SharedArrayBuffer (multithreading in ONNX Runtime)
+
+# Apply to all responses
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: credentialless
+
+# Cache static assets
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Cache WASM files (longer - these are versioned)
+/assets/models/wasm/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/models/Xenova/*
+  Cache-Control: public, max-age=31536000, immutable

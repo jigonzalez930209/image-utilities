@@ -7,6 +7,7 @@ import { ImageCard } from './components/ImageCard';
 import { ImageEditor } from './components/ImageEditor';
 import { BatchToolbar } from './components/BatchToolbar';
 import { AnimatedBackground } from './components/AnimatedBackground';
+import { ThreadingBadge } from './components/ThreadingBadge';
 import { cn } from './lib/utils';
 
 const App: React.FC = () => {
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#020617] selection:bg-brand/30">
       <AnimatedBackground active={images.length > 0} />
+      <ThreadingBadge />
       
       {/* Background Decor */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">

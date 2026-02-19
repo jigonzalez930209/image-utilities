@@ -1,10 +1,32 @@
-/*! coi-serviceworker v0.1.7 - adapted from https://github.com/gzuidhof/coi-serviceworker (MIT) */
+/*! coi-serviceworker v0.1.8 - Android Chrome multithreading fix */
 /* Single-file: acts as Service Worker when loaded in SW context, registration script in browser */
-
-let coepCredentialless = false;
+/*
+ * DESIGN RATIONALE (Android Chrome):
+ *
+ * The SW must default coepCredentialless = TRUE so that the very first navigation
+ * response it serves already carries COEP: credentialless + COOP: same-origin.
+ * If the SW defaults to false (require-corp) and waits for a postMessage from the
+ * page to switch to credentialless, it is already too late — the navigation response
+ * (the HTML itself) was already served with the wrong COEP header, so the browser
+ * never enters crossOriginIsolated mode for that page load.
+ *
+ * COEP: credentialless is supported on Android Chrome 96+ (released Oct 2021) and
+ * is strictly better than require-corp for apps that load cross-origin resources
+ * (fonts, CDN assets) because it does not require those resources to opt-in with
+ * Cross-Origin-Resource-Policy headers.
+ *
+ * Flow:
+ *   1st visit  → SW not installed → page loads without isolation → SW installs → reload
+ *   2nd visit  → SW controlling   → serves credentialless headers → crossOriginIsolated=true ✓
+ */
 
 if (typeof window === 'undefined') {
   // ===== SERVICE WORKER CONTEXT =====
+
+  // Always use credentialless — works on Android Chrome 96+ (Oct 2021).
+  // Never wait for a postMessage; the navigation response must already have the right headers.
+  const COEP = 'credentialless';
+
   self.addEventListener('install', () => self.skipWaiting());
   self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
 
@@ -14,8 +36,6 @@ if (typeof window === 'undefined') {
       self.registration.unregister()
         .then(() => self.clients.matchAll())
         .then(clients => clients.forEach(client => client.navigate(client.url)));
-    } else if (ev.data.type === 'coepCredentialless') {
-      coepCredentialless = ev.data.value;
     }
   });
 
@@ -23,8 +43,9 @@ if (typeof window === 'undefined') {
     const r = event.request;
     if (r.cache === 'only-if-cached' && r.mode !== 'same-origin') return;
 
-    // For credentialless mode: strip credentials from no-cors cross-origin requests
-    const request = (coepCredentialless && r.mode === 'no-cors')
+    // credentialless: strip credentials from no-cors cross-origin requests so
+    // the browser accepts them without requiring CORP headers on the resource.
+    const request = (r.mode === 'no-cors')
       ? new Request(r, { credentials: 'omit' })
       : r;
 
@@ -35,12 +56,7 @@ if (typeof window === 'undefined') {
         if (response.status === 0) return response;
 
         const newHeaders = new Headers(response.headers);
-        newHeaders.set('Cross-Origin-Embedder-Policy',
-          coepCredentialless ? 'credentialless' : 'require-corp'
-        );
-        if (!coepCredentialless) {
-          newHeaders.set('Cross-Origin-Resource-Policy', 'cross-origin');
-        }
+        newHeaders.set('Cross-Origin-Embedder-Policy', COEP);
         newHeaders.set('Cross-Origin-Opener-Policy', 'same-origin');
 
         // CRITICAL for Android Chrome: streaming a navigation response body into
@@ -66,105 +82,70 @@ if (typeof window === 'undefined') {
 } else {
   // ===== BROWSER CONTEXT (registration script) =====
   (() => {
-    // Skip on localhost — dev server already sets COOP/COEP headers
+    // Skip on localhost — dev server already sets COOP/COEP headers directly
     const host = window.location.hostname;
     if (host === 'localhost' || host === '127.0.0.1') return;
 
-    const reloadedBySelf = window.sessionStorage.getItem('coiReloadedBySelf');
-    window.sessionStorage.removeItem('coiReloadedBySelf');
-
-    // If isolated, clear retry count
+    // Already isolated — SW is working correctly, nothing to do
     if (window.crossOriginIsolated) {
-      window.sessionStorage.removeItem('coiRetryCount');
+      sessionStorage.removeItem('coiRetry');
+      console.log('[COI] crossOriginIsolated=true ✓ SharedArrayBuffer available, multithreading enabled');
+      return;
     }
-
-    const coepDegrading = (reloadedBySelf === 'coepdegrade');
-
-    const coi = {
-      shouldRegister: () => !reloadedBySelf,
-      shouldDeregister: () => false,
-      coepCredentialless: () => true,
-      coepDegrade: () => true,
-      doReload: () => window.location.reload(),
-      quiet: false,
-      ...window.coi,
-    };
-
-    const n = navigator;
-    const controlling = n.serviceWorker && n.serviceWorker.controller;
-
-    // Track COEP failure
-    if (controlling && !window.crossOriginIsolated) {
-      window.sessionStorage.setItem('coiCoepHasFailed', 'true');
-    }
-    const coepHasFailed = window.sessionStorage.getItem('coiCoepHasFailed');
-
-    if (controlling) {
-      const reloadToDegrade = coi.coepDegrade() && !(coepDegrading || window.crossOriginIsolated);
-      n.serviceWorker.controller.postMessage({
-        type: 'coepCredentialless',
-        value: (reloadToDegrade || (coepHasFailed && coi.coepDegrade()))
-          ? false
-          : coi.coepCredentialless(),
-      });
-      if (reloadToDegrade) {
-        !coi.quiet && console.log('[COI] Reloading to degrade COEP to require-corp...');
-        window.sessionStorage.setItem('coiReloadedBySelf', 'coepdegrade');
-        coi.doReload();
-        return;
-      }
-      if (coi.shouldDeregister()) {
-        n.serviceWorker.controller.postMessage({ type: 'deregister' });
-      }
-    }
-
-    // Already isolated or no crossOriginIsolated support — nothing to do
-    if (window.crossOriginIsolated !== false || !coi.shouldRegister()) return;
 
     if (!window.isSecureContext) {
-      !coi.quiet && console.log('[COI] Not registered: requires secure context (HTTPS).');
+      console.warn('[COI] Not registered: requires secure context (HTTPS).');
       return;
     }
-    if (!n.serviceWorker) {
-      !coi.quiet && console.error('[COI] Not registered: serviceWorker unavailable.');
+    if (!navigator.serviceWorker) {
+      console.warn('[COI] Not registered: serviceWorker API unavailable.');
       return;
     }
 
-    // Register this file as the Service Worker (same URL = correct scope)
-    n.serviceWorker.register(window.document.currentScript.src).then(
+    const swUrl = document.currentScript.src;
+
+    navigator.serviceWorker.register(swUrl).then(
       (registration) => {
-        !coi.quiet && console.log('[COI] SW registered:', registration.scope);
+        console.log('[COI] SW registered:', registration.scope);
 
-        registration.addEventListener('updatefound', () => {
-          !coi.quiet && console.log('[COI] SW updated, reloading...');
-          window.sessionStorage.setItem('coiReloadedBySelf', 'updatefound');
-          coi.doReload();
-        });
+        const doReload = () => {
+          console.log('[COI] Reloading to activate COOP/COEP headers...');
+          window.location.reload();
+        };
 
-        // SW is active but not yet controlling — must reload to get headers
-        if (registration.active && !n.serviceWorker.controller) {
-          !coi.quiet && console.log('[COI] SW active but not controlling, reloading...');
-          window.sessionStorage.setItem('coiReloadedBySelf', 'notcontrolling');
-          coi.doReload();
+        if (registration.installing || registration.waiting) {
+          // SW just installed or waiting — reload once it activates
+          const sw = registration.installing || registration.waiting;
+          sw.addEventListener('statechange', (e) => {
+            if (e.target.state === 'activated') doReload();
+          });
+          return;
         }
 
-        // AGGRESSIVE RETRY FOR MOBILE:
-        // If controlling but NOT isolated, force reload up to 3 times.
-        // Android Chrome sometimes needs an extra cycle to apply headers.
-        if (n.serviceWorker.controller && !window.crossOriginIsolated) {
-          const retryCount = parseInt(window.sessionStorage.getItem('coiRetryCount') || '0');
-          if (retryCount < 3) {
-            !coi.quiet && console.log(`[COI] Controlled but not isolated. Retrying... (${retryCount + 1}/3)`);
-            window.sessionStorage.setItem('coiRetryCount', (retryCount + 1).toString());
-            window.sessionStorage.setItem('coiReloadedBySelf', 'retry_isolation');
-            coi.doReload();
+        if (registration.active && !navigator.serviceWorker.controller) {
+          // SW active but not yet controlling this page (e.g. hard refresh)
+          doReload();
+          return;
+        }
+
+        // SW is controlling but crossOriginIsolated is still false.
+        // This can happen on Android Chrome when the SW served the page before
+        // it was updated. Reload once to get the correct headers.
+        if (navigator.serviceWorker.controller) {
+          const retryKey = 'coiRetry';
+          const retries = parseInt(sessionStorage.getItem(retryKey) || '0');
+          if (retries < 2) {
+            sessionStorage.setItem(retryKey, String(retries + 1));
+            console.log(`[COI] SW controlling but not isolated — reload attempt ${retries + 1}/2`);
+            doReload();
           } else {
-            console.warn('[COI] Max retries reached. Cross-Origin Isolation failed on this device.');
+            sessionStorage.removeItem(retryKey);
+            console.warn('[COI] crossOriginIsolated still false after retries. Device may not support COEP credentialless.');
           }
         }
       },
       (err) => {
-        !coi.quiet && console.error('[COI] SW registration failed:', err);
+        console.error('[COI] SW registration failed:', err);
       }
     );
   })();

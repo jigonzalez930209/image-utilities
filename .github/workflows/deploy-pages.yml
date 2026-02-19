@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup WASM assets (vips, magick, ORT threaded)
+        run: pnpm run setup:wasm
+
       - name: Download background-removal assets
         run: pnpm run download:bg
 

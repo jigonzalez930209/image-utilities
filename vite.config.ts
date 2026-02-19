@@ -39,6 +39,7 @@ export default defineConfig({
     }
   ],
   server: {
+    host: true, // Bind to all interfaces for local network access
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'credentialless',

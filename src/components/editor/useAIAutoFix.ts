@@ -12,7 +12,9 @@ env.useBrowserCache = false; // Disable to avoid caching 404/401 HTML responses
 // Configure local WASM paths
 if (env.backends.onnx.wasm) {
   env.backends.onnx.wasm.wasmPaths = '/assets/models/wasm/';
-  env.backends.onnx.wasm.numThreads = 1; // Reduce memory overhead for CPU mode
+  env.backends.onnx.wasm.numThreads = typeof SharedArrayBuffer !== 'undefined'
+    ? Math.min(navigator.hardwareConcurrency ?? 4, 4)
+    : 1;
 }
 
 let classifier: ImageClassificationPipeline | null = null;
