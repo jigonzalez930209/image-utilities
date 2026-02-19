@@ -17,7 +17,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const OUT_DIR = join(ROOT, 'public', 'assets', 'models', 'Xenova', 'RMBG-1.4');
 
-const HF_BASE = 'https://huggingface.co/Xenova/RMBG-1.4/resolve/main';
+const HF_BASE = 'https://huggingface.co/briaai/RMBG-1.4/resolve/main';
 
 // All files needed by transformers.js for RMBG-1.4
 const FILES = [
