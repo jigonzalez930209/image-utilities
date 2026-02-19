@@ -1,5 +1,3 @@
-import { cachedFetch } from './cache';
-
 // Skip preload - using CDN for background-removal models
 const preloadFastModel = async (model: 'isnet_fp16' | 'isnet_quint8'): Promise<void> => {
   console.log(`[Preload] Skipping ${model} - using CDN`);
