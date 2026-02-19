@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Zap, ListFilter, ArrowRight, LayoutList, Camera } from 'lucide-react';
+import logo from '/logo.svg';
 import { useImageProcessor } from './hooks/useImageProcessor';
 import { Dropzone } from './components/Dropzone';
 import { ImageCard } from './components/ImageCard';
@@ -63,7 +64,7 @@ const App: React.FC = () => {
             className="inline-block transition-all duration-500"
           >
             <img 
-              src="/logo.svg" 
+              src={logo} 
               alt="Image Studio Logo" 
               className="w-24 h-24 md:w-32 md:h-32" 
             />
