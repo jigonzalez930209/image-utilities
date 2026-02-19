@@ -13,7 +13,7 @@ interface ThreadingInfo {
 function getThreadingInfo(): ThreadingInfo {
   const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
   const isolated = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated;
-  const threads = isolated ? Math.min(navigator.hardwareConcurrency ?? 4, 4) : 1;
+  const threads = isolated ? (navigator.hardwareConcurrency ?? 4) : 1;
   
   // Debug log
   console.log('[ThreadingBadge]', {

@@ -13,7 +13,7 @@ env.useBrowserCache = false; // Disable to avoid caching 404/401 HTML responses
 if (env.backends.onnx.wasm) {
   env.backends.onnx.wasm.wasmPaths = '/assets/models/wasm/';
   env.backends.onnx.wasm.numThreads = typeof SharedArrayBuffer !== 'undefined'
-    ? Math.min(navigator.hardwareConcurrency ?? 4, 4)
+    ? (navigator.hardwareConcurrency ?? 4)
     : 1;
 }
 

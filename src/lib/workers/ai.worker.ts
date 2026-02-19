@@ -15,7 +15,7 @@ const BASE = getBase();
 // be 1 to avoid the ONNX Runtime warning and fallback overhead.
 const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
 const optimalThreads = hasSharedArrayBuffer
-  ? Math.min(navigator.hardwareConcurrency ?? 4, 4)
+  ? navigator.hardwareConcurrency ?? 4
   : 1;
 
 // Detect best available execution provider for @huggingface/transformers
