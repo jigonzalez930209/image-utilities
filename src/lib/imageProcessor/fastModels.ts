@@ -3,13 +3,10 @@ import { cachedFetch } from './cache';
 import { dispatchImageProgress } from './events';
 import type { FastBackgroundModel } from './types';
 
-/** Assets en public/assets/background-removal/. Respeta base (ej. /image-utilities/ en GitHub Pages). */
-const getPublicPath = (): string => {
-  const base = typeof import.meta.env?.BASE_URL === 'string' ? import.meta.env.BASE_URL : '/';
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}${base}assets/background-removal/`;
-  }
-  return `${base}assets/background-removal/`;
+/** Use CDN for background-removal models - works without local downloads */
+const getPublicPath = (): string | undefined => {
+  // Return undefined to use CDN default (faster, no download needed)
+  return undefined;
 };
 
 const buildConfig = (id: string, model: FastBackgroundModel): BGConfig => {
