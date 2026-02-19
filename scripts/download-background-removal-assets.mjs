@@ -70,5 +70,6 @@ async function main() {
 
 main().catch((err) => {
   console.error(err);
-  process.exit(1);
+  console.warn('Background-removal download failed - models will load from CDN');
+  process.exit(0); // Don't fail the build
 });
