@@ -19,18 +19,41 @@ export const AnimatedBackground: React.FC<{ active: boolean }> = ({ active }) =>
             stroke="url(#bgGradient)" 
             strokeWidth="2" 
             strokeDasharray="20 10" 
-          />
+          >
+            <animateTransform 
+              attributeName="transform" 
+              type="rotate" 
+              from="0 128 128" 
+              to="360 128 128" 
+              dur="60s" 
+              repeatCount="indefinite" 
+            />
+          </circle>
           
           <rect 
             x="58" y="58" width="140" height="140" rx="34" 
             stroke="url(#bgGradient)" 
             strokeWidth="2"
-          />
+          >
+            <animate 
+              attributeName="opacity" 
+              values="0.5;0.8;0.5" 
+              dur="10s" 
+              repeatCount="indefinite" 
+            />
+          </rect>
 
           <path 
             d="M128 108C139.046 108 148 116.954 148 128C148 139.046 139.046 148 128 148C116.954 148 108 139.046 108 128C108 116.954 116.954 108 128 108Z" 
             fill="url(#bgGradient)"
-          />
+          >
+            <animate 
+              attributeName="opacity" 
+              values="0.3;0.6;0.3" 
+              dur="8s" 
+              repeatCount="indefinite" 
+            />
+          </path>
         </svg>
       </div>
     </div>

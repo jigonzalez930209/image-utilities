@@ -45,12 +45,12 @@ const App: React.FC = () => {
       </div>
 
       <main className={cn(
-        "relative z-10 container mx-auto px-4 transition-all duration-500",
+        "relative z-10 container mx-auto px-4",
         images.length > 0 ? "py-4 md:py-8" : "py-8 md:py-16"
       )}>
         {/* Header Section */}
         <header className={cn(
-          "text-center",
+          "text-center transition-all duration-500 ease-in-out",
           images.length > 0 ? "mb-6" : "mb-12 md:mb-20"
         )}>
           <div
@@ -60,7 +60,7 @@ const App: React.FC = () => {
           </div>
           
           <div
-            className="inline-block"
+            className="inline-block transition-all duration-500"
           >
             <img 
               src="/logo.svg" 
