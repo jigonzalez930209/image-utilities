@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Settings2, Trash2, RefreshCw, ChevronDown, Layers, ShieldCheck } from 'lucide-react';
 import { OUTPUT_CATEGORIES, type OutputFormat } from '../lib/formats';
 import { cn } from '../lib/utils';
@@ -40,9 +39,7 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-4xl p-6 flex flex-wrap items-center justify-between gap-6 shadow-2xl"
     >
       <div className="flex items-center gap-4">
@@ -157,6 +154,6 @@ export const BatchToolbar: React.FC<BatchToolbarProps> = ({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };

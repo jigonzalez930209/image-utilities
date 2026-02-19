@@ -1,5 +1,4 @@
 import React from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { Trash2, RefreshCw, CheckCircle, Download, ChevronDown, Eye, ChevronUp, Layers, Image as ImageIcon } from 'lucide-react';
 import { type ProcessedImage } from '../hooks/useImageProcessor';
 import { formatBytes, cn } from '../lib/utils';
@@ -70,12 +69,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
 
 
   return (
-    <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.2 }}
+    <div
       className="group relative bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden"
     >
       <div className="p-4 flex flex-col sm:flex-row gap-4 items-center">
@@ -260,13 +254,8 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
         </div>
       </div>
 
-      <AnimatePresence>
-        {isSettingsOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
+      {isSettingsOpen && (
+          <div
             className="border-t border-white/5 bg-white/2 overflow-hidden"
           >
             <div className="p-4 space-y-4">
@@ -311,12 +300,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
               </div>
 
               {image.removeBackground && (
-                <motion.div 
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4"
-                >
+                <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-2">
                     {models.map((m) => (
                       <button
@@ -332,11 +316,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                         <div className="text-[10px] font-black uppercase mb-0.5">{m.name}</div>
                         <div className="text-[8px] leading-tight opacity-60">{m.desc}</div>
                         {image.bgModel === m.id && (
-                          <motion.div 
-                            layoutId="active-model" 
-                            transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-                            className="absolute inset-0 border-2 border-brand rounded-xl pointer-events-none" 
-                          />
+                          <div className="absolute inset-0 border-2 border-brand rounded-xl pointer-events-none" />
                         )}
                       </button>
                     ))}
@@ -360,12 +340,11 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
                       </button>
                     )}
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
 
       <ImagePreview
         isOpen={showPreview}
@@ -374,7 +353,7 @@ export const ImageCard: React.FC<ImageCardProps> = ({ image, onUpdate, onProcess
         previewUrl={image.previewUrl || ''}
         onConfirmProcess={() => onProcess(image.id)}
       />
-    </motion.div>
+    </div>
   );
 };
 

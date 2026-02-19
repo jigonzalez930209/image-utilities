@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, ListFilter, ArrowRight, LayoutList, Camera } from 'lucide-react';
 import { useImageProcessor } from './hooks/useImageProcessor';
 import { Dropzone } from './components/Dropzone';
@@ -51,70 +50,33 @@ const App: React.FC = () => {
       )}>
         {/* Header Section */}
         <header className={cn(
-          "text-center transition-all duration-500 ease-in-out",
+          "text-center",
           images.length > 0 ? "mb-6" : "mb-12 md:mb-20"
         )}>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ 
-              opacity: images.length > 0 ? 0 : 1, 
-              y: images.length > 0 ? -20 : 0,
-              height: images.length > 0 ? 0 : 'auto',
-              marginBottom: images.length > 0 ? 0 : 24,
-              pointerEvents: images.length > 0 ? 'none' : 'auto'
-            }}
+          <div
             className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-brand text-xs font-bold tracking-widest uppercase overflow-hidden"
           >
             <Zap size={14} /> Powered by Magick WASM
-          </motion.div>
+          </div>
           
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ 
-              opacity: images.length > 0 ? 0.6 : 1, 
-              scale: images.length > 0 ? 0.5 : 1,
-              height: images.length > 0 ? 40 : 'auto',
-              marginBottom: images.length > 0 ? 0 : 20
-            }}
-            className="flex justify-center"
+          <div
+            className="inline-block"
           >
             <img 
-              src={`${import.meta.env.BASE_URL}logo.svg`.replace(/\/+/g, '/')} 
+              src="/logo.svg" 
               alt="Image Studio Logo" 
               className="w-24 h-24 md:w-32 md:h-32" 
             />
-          </motion.div>
+          </div>
 
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ 
-              opacity: 1, 
-              scale: images.length > 0 ? 0.6 : 1,
-              y: images.length > 0 ? -20 : 0 
-            }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className={cn(
-              "font-black text-white tracking-tighter origin-center transition-all duration-500",
-              images.length > 0 ? "text-3xl md:text-5xl -mt-8" : "text-6xl md:text-8xl mb-6"
-            )}
-          >
+          <h1 className="text-4xl md:text-6xl font-black text-white mb-4 tracking-tight">
             Image<span className="bg-linear-to-r from-brand to-purple-500 bg-clip-text text-transparent">Studio</span>
-          </motion.h1>
+          </h1>
 
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ 
-              opacity: images.length > 0 ? 0 : 1,
-              height: images.length > 0 ? 0 : 'auto',
-              pointerEvents: images.length > 0 ? 'none' : 'auto',
-              marginTop: images.length > 0 ? 0 : 24
-            }}
-            transition={{ duration: 0.4 }}
-            className="text-white/40 text-lg md:text-xl max-w-2xl mx-auto font-medium overflow-hidden"
-          >
+          <p className="text-white/40 text-sm md:text-base max-w-lg mx-auto">
             Ultra-fast conversion and professional editing powered by AI, 
             right in your browser. Full privacy guaranteed.
-          </motion.p>
+          </p>
         </header>
 
         {/* Premium Tab Interface */}
@@ -146,22 +108,11 @@ const App: React.FC = () => {
 
         <section className="space-y-12">
           {activeTab === 'converter' ? (
-            <motion.div
-              layout
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="space-y-8"
-            >
+            <div className="space-y-8">
               <Dropzone onFilesDropped={addImages} />
 
-              <AnimatePresence mode="popLayout">
-                {images.length > 0 && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="space-y-8"
-                  >
+              {images.length > 0 && (
+                <div className="space-y-8">
                     <BatchToolbar 
                       imageCount={images.length}
                       onUpdateAll={setGlobalOptions}
@@ -192,27 +143,19 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     
-                    <motion.div 
-                      layout
-                      className="flex justify-end pt-6"
-                    >
+                    <div className="flex justify-end pt-6">
                       <button
                         onClick={processAll}
                         className="group flex items-center gap-3 px-8 py-4 bg-brand hover:bg-brand-accent text-white rounded-2xl font-black shadow-2xl shadow-brand/25 transition-all hover:-translate-y-1 active:translate-y-0"
                       >
                         Process all <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
                       </button>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+                    </div>
+                </div>
+              )}
+            </div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="glass rounded-4xl p-12 md:p-24 border border-white/5 shadow-2xl text-center"
-            >
+            <div className="glass rounded-4xl p-12 md:p-24 border border-white/5 shadow-2xl text-center">
               <div className="max-w-md mx-auto space-y-8">
                 <div className="w-24 h-24 bg-brand/10 rounded-3xl flex items-center justify-center mx-auto text-brand">
                   <Camera size={48} />
@@ -238,7 +181,7 @@ const App: React.FC = () => {
                   </div>
                 </label>
               </div>
-            </motion.div>
+            </div>
           )}
         </section>
 

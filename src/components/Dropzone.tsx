@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Upload, Image as ImageIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -39,7 +38,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
 
   return (
     <div className="w-full">
-      <motion.label
+      <label
         htmlFor="file-upload"
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
@@ -55,13 +54,9 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
           "w-full max-w-lg mx-auto h-48 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center transition-all duration-300",
           isDragActive ? "border-brand bg-brand/5 scale-105" : "border-white/10"
         )}>
-          <motion.div
-            initial={{ y: 0 }}
-            animate={{ y: isDragActive ? -10 : 0 }}
-            className="mb-4 text-white/40"
-          >
+          <div className="mb-4 text-white/40">
             {isDragActive ? <ImageIcon size={48} className="text-brand" /> : <Upload size={48} />}
-          </motion.div>
+          </div>
           <p className="text-2xl font-black text-white mb-2 tracking-tight">
             {isDragActive ? "Drop here" : "Drag your images here"}
           </p>
@@ -70,7 +65,7 @@ export const Dropzone: React.FC<DropzoneProps> = ({ onFilesDropped }) => {
           </p>
         </div>
         <input id="file-upload" type="file" className="hidden" multiple accept="image/*" onChange={handleChange} />
-      </motion.label>
+      </label>
     </div>
   );
 };
